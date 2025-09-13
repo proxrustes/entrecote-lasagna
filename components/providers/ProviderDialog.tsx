@@ -20,7 +20,6 @@ import { createProvider, updateProvider } from "@/services/providers";
 type FormState = Omit<Provider, "id" | "createdAt" | "updatedAt">;
 
 const emptyForm = (): FormState => ({
-  providerId: "",
   name: "",
   nuclearEnergyPct: 0,
   coalEnergyPct: 0,
@@ -49,7 +48,6 @@ export function ProviderDialog({
   React.useEffect(() => {
     if (initial) {
       setForm({
-        providerId: initial.providerId,
         name: initial.name,
         nuclearEnergyPct: initial.nuclearEnergyPct,
         coalEnergyPct: initial.coalEnergyPct,
@@ -74,8 +72,7 @@ export function ProviderDialog({
     form.windEnergyPct +
     form.miscRenewableEnergyPct;
 
-  const invalid =
-    Math.abs(total - 100) > 0.01 || !form.providerId || !form.name;
+  const invalid = Math.abs(total - 100) > 0.01 || !form.name;
 
   const num = (k: keyof FormState) => ({
     value: form[k] as number,
@@ -126,16 +123,6 @@ export function ProviderDialog({
             <Grid size={7}>
               <Stack spacing={4}>
                 <Stack spacing={2}>
-                  <TextField
-                    label="Contract number"
-                    size="small"
-                    value={form.providerId}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, providerId: e.target.value }))
-                    }
-                    fullWidth
-                    disabled={!!initial}
-                  />
                   <TextField
                     size="small"
                     label="Name"

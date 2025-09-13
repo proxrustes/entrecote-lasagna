@@ -40,7 +40,6 @@ export function ProvidersTable({
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
-              <TableCell>Provider ID</TableCell>
               <TableCell>Mix (key sources)</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
@@ -64,14 +63,7 @@ export function ProvidersTable({
                       )}
                     </Stack>
                   </TableCell>
-                  <TableCell>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontFamily: "ui-monospace,Menlo,monospace" }}
-                    >
-                      {p.providerId}
-                    </Typography>
-                  </TableCell>
+
                   <TableCell>
                     <Stack direction="row" spacing={1} flexWrap="wrap">
                       <Chip size="small" label={`Wind ${p.windEnergyPct}%`} />

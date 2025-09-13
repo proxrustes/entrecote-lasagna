@@ -15,7 +15,6 @@ export function ReactQueryProvider({
           queries: {
             staleTime: 30_000,
             refetchOnWindowFocus: false,
-            keepPreviousData: true,
           },
         },
       })
