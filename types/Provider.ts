@@ -1,6 +1,5 @@
 export type Provider = {
   id: string;
-  providerId: string;
   name: string;
   nuclearEnergyPct: number;
   coalEnergyPct: number;
