@@ -240,9 +240,21 @@ async function main() {
 
   console.log(`📊 Processing ${datasetLines.length} rows of energy data...`)
 
-  // Prepare batch arrays
-  const consumptionRecords: any[] = []
-  const pvGenerationRecords: any[] = []
+  // Prepare batch arrays with proper types
+  interface ConsumptionRecord {
+    timestamp: Date
+    consumptionKwh: number
+    userId: string
+  }
+
+  interface PvGenerationRecord {
+    timestamp: Date
+    generationKwh: number
+    deviceId: string
+  }
+
+  const consumptionRecords: ConsumptionRecord[] = []
+  const pvGenerationRecords: PvGenerationRecord[] = []
 
   // Helper function to safely parse float and check for NaN
   const safeParseFloat = (value: string): number | null => {
