@@ -119,9 +119,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE /api/providers/[providerId] - Delete provider
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { providerId } = params
+export async function DELETE(
+    _req: NextRequest,
+    { params }: { params: Promise<{ providerId: string }> }
+) {
+  const { providerId } = await params;  try {
 
     // Check if provider exists and is in use
     const provider = await prisma.provider.findUnique({
