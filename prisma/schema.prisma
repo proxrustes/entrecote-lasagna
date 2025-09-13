@@ -14,124 +14,174 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
+enum UserType {
   TENANT
   LANDLORD
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  role      UserRole
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  address    String
+  iban       String
+  type       UserType
+  contractId String?  // Only for tenants
 
   // Relations
-  consumptions Consumption[]
-  contracts    Contract[]
+  authentication Authentication?
+  consumptions   Consumption[]
+  costs          Cost[]
+  ownedBuildings Building[]     @relation("LandlordBuildings")
+  tenantBuildings BuildingTenant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("users")
 }
 
-model Tariff {
-  id              String    @id @default(cuid())
-  name            String    @unique // e.g., "TENANT_T1"
-  model           String    @default("two_price") // "two_price", "flat_rate", etc.
-  pvPricePerKwh   Float     // €0.26/kWh
-  gridPricePerKwh Float     // €0.3351/kWh
-  baseFeePerMonth Float     // €10/month
-  currency        String    @default("EUR")
-  validFrom       DateTime
-  validTo         DateTime?
+model Authentication {
+  id       String @id @default(cuid())
+  email    String @unique
+  password String
 
   // Relations
-  consumptions    Consumption[]
-  contracts       Contract[]
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@map("tariffs")
+  @@map("authentications")
+}
+
+model Consumption {
+  id             String   @id @default(cuid())
+  timestamp      DateTime
+  consumptionKwh Float
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("consumptions")
+  @@index([timestamp, userId])
 }
 
 model PvGeneration {
   id            String   @id @default(cuid())
   timestamp     DateTime
-  generationKwh Float    // kWh generated
-  meterId       String?  // pv_meter identifier
+  generationKwh Float
+  deviceId      String
 
-  createdAt     DateTime @default(now())
+  // Relations
+  device Device @relation(fields: [deviceId], references: [id])
+
+  createdAt DateTime @default(now())
 
   @@map("pv_generations")
   @@index([timestamp])
 }
 
-model Settlement {
-  id                String    @id @default(cuid())
-  name              String    @unique // e.g., "LANDLORD_S1"
-  gridCostPerKwh    Float     // €0.3351/kWh
-  feedInPricePerKwh Float     // €0.08/kWh
-  currency          String    @default("EUR")
-  validFrom         DateTime
-  validTo           DateTime?
+model Cost {
+  id         String @id @default(cuid())
+  pvCost     Float
+  gridCost   Float
+  baseFee    Float
+  currency   String @default("EUR")
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  // Relations - only for tenants
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
-  @@map("settlements")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("costs")
 }
 
-model Consumption {
-  id              String   @id @default(cuid())
-  timestamp       DateTime
-  consumptionKwh  Float    // kWh consumed
-  meterColumn     String   // "we1_consumption_kWh", "we2_consumption_kWh", "general_consumption_kWh"
+model Building {
+  id         String @id @default(cuid())
+  buildingId String @unique
+  address    String
+  providerId String
 
   // Relations
-  userId          String?  // Link to tenant (null for general/common consumption)
-  user            User?    @relation(fields: [userId], references: [id])
-  tariffId        String
-  tariff          Tariff   @relation(fields: [tariffId], references: [id])
+  landlordId String
+  landlord   User                @relation("LandlordBuildings", fields: [landlordId], references: [id])
+  provider   Provider            @relation(fields: [providerId], references: [id])
+  devices    Device[]
+  tenants    BuildingTenant[]
+  settlement Settlement?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@map("consumptions")
-  @@index([timestamp, userId])
-  @@index([meterColumn, timestamp])
+  @@map("buildings")
 }
 
-model Contract {
-  id            String    @id @default(cuid())
-  contractId    String    @unique // CUST_WE1_2025, CUST_WE2_2025
-  tenantName    String    // "Mieter EG rechts", "Mieter EG links"
-  meterColumn   String    // "we1_consumption_kWh", "we2_consumption_kWh"
-  contractStart DateTime
-  contractEnd   DateTime?
-  billingCycle  String    @default("yearly")
-  baseFeeShare  Float     @default(1)
+model BuildingTenant {
+  id String @id @default(cuid())
 
   // Relations
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
-  tariffId      String
-  tariff        Tariff    @relation(fields: [tariffId], references: [id])
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  @@map("contracts")
-}
-
-model GridFlow {
-  id        String   @id @default(cuid())
-  timestamp DateTime
-  importKwh Float    // Grid import (when building needs external power)
-  exportKwh Float    // Grid export (when building sends excess solar back)
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id])
+  tenantId   String
+  tenant     User     @relation(fields: [tenantId], references: [id])
 
   createdAt DateTime @default(now())
 
-  @@map("grid_flows")
-  @@index([timestamp])
+  @@map("building_tenants")
+  @@unique([buildingId, tenantId])
 }
 
+model Device {
+  id         String @id @default(cuid())
+  deviceId   String @unique
+  status     String
+  buildingId String
+
+  // Relations
+  building      Building      @relation(fields: [buildingId], references: [id])
+  pvGenerations PvGeneration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("devices")
+}
+
+model Provider {
+  id                String @id @default(cuid())
+  providerId        String @unique
+  name              String
+  windEnergyPct     Float
+  solarEnergyPct    Float
+  nuclearEnergyPct  Float
+
+  // Relations
+  buildings Building[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("providers")
+}
+
+model Settlement {
+  id            String @id @default(cuid())
+  gridCost      Float
+  feedingPrice  Float
+  currency      String @default("EUR")
+
+  // Relations
+  buildingId String   @unique
+  building   Building @relation(fields: [buildingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settlements")
+}
