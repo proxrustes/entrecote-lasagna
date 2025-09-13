@@ -154,12 +154,16 @@ model Device {
 }
 
 model Provider {
-  id                String @id @default(cuid())
-  providerId        String @unique
-  name              String
-  windEnergyPct     Float
-  solarEnergyPct    Float
-  nuclearEnergyPct  Float
+  id                      String @id @default(cuid())
+  providerId              String @unique
+  name                    String
+  nuclearEnergyPct        Float  @default(0)
+  coalEnergyPct           Float  @default(0)
+  gasEnergyPct            Float  @default(0)
+  miscFossilEnergyPct     Float  @default(0)
+  solarEnergyPct          Float  @default(0)
+  windEnergyPct           Float  @default(0)
+  miscRenewableEnergyPct  Float  @default(0)
 
   // Relations
   buildings Building[]
