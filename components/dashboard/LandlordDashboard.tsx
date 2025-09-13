@@ -15,6 +15,7 @@ import {
 import Grid2 from "@mui/material/Grid";
 import { useSession } from "next-auth/react";
 import { ConsumptionVsGenerationChart } from "./ConsumptionVsGeneration";
+import { useEffect, useState } from "react";
 
 type ConsumptionRow = {
   timestamp: string;
@@ -57,20 +58,20 @@ export function LandlordDashboard() {
   const { data: session } = useSession();
   const landlordId = (session as any)?.user?.id as string | undefined;
 
-  const [buildingIds, setBuildingIds] = React.useState<string[]>([]);
-  const [selectedHouse, setSelectedHouse] = React.useState<string>("");
-  const [tenantIds, setTenantIds] = React.useState<string[]>([]);
-  const [selectedTenant, setSelectedTenant] = React.useState<string>("all");
+  const [buildingIds, setBuildingIds] = useState<string[]>([]);
+  const [selectedHouse, setSelectedHouse] = useState<string>("");
+  const [tenantIds, setTenantIds] = useState<string[]>([]);
+  const [selectedTenant, setSelectedTenant] = useState<string>("all");
 
-  const [buildingLoading, setBuildingLoading] = React.useState(false);
-  const [tenantLoading, setTenantLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [buildingLoading, setBuildingLoading] = useState(false);
+  const [tenantLoading, setTenantLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [sumCons, setSumCons] = React.useState(0);
-  const [sumGen, setSumGen] = React.useState(0);
+  const [sumCons, setSumCons] = useState(0);
+  const [sumGen, setSumGen] = useState(0);
   const savings = Math.min(sumCons, sumGen) * EUR_PER_KWH;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!landlordId) return;
     let ignore = false;
     (async () => {
@@ -99,7 +100,7 @@ export function LandlordDashboard() {
     };
   }, [landlordId]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!landlordId || !selectedHouse) return;
     let ignore = false;
     (async () => {
@@ -111,7 +112,13 @@ export function LandlordDashboard() {
           buildingId: selectedHouse,
         });
         if (ignore) return;
-        const ids = Array.from(new Set(rows.map((r) => r.userId)));
+        const ids = Array.from(
+          new Set(
+            rows
+              .map((r) => r.userId)
+              .filter((uid): uid is string => !!uid && uid !== landlordId)
+          )
+        ).sort();
         setTenantIds(ids);
       } catch (e: any) {
         if (!ignore) setError(e?.message ?? "load failed");
