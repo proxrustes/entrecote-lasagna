@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import { MOCK_HOUSES } from "../../app/dashboard/page";
 
+
 export default function LandlordBilling() {
   // добавляем houseId / unitId, чтобы линкнуть форму инвойса
   const rows = MOCK_HOUSES.flatMap((h) =>

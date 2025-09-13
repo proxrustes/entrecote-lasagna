@@ -12,7 +12,7 @@ import {
   Stack,
 } from "@mui/material";
 import { useSession } from "next-auth/react";
-import { MOCK_HOUSES as HOUSES } from "../../app/dashboard/page";
+import { MOCK_HOUSES as HOUSES } from "../../lib/mockData";
 import HomeIcon from "@mui/icons-material/Home";
 import { CardHeader } from "./CardHeader";
 

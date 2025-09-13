@@ -35,6 +35,7 @@ type GenerationPoint = {
 
 const LOCAL_EUR_PER_KWH = 0.3;
 
+
 export function LandlordDashboard() {
   const { data: session } = useSession();
   const landlordId = (session as any)?.user?.id;

@@ -1,4 +1,4 @@
-import { MOCK_HOUSES } from "../app/dashboard/page";
+import { MOCK_HOUSES } from "./mockData";
 
 // --- Common helpers
 export function kpiForHouse(house: (typeof MOCK_HOUSES)[number]) {

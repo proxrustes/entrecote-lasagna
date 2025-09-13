@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { prisma } from "@/lib/prisma";
 
 const handler = NextAuth({
   providers: [
@@ -10,38 +11,50 @@ const handler = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (
-          credentials?.email === "landlord@test.com" &&
-          credentials?.password === "123"
-        ) {
-          return {
-            id: "LANDLORD_1",
-            email: credentials.email,
-            role: "landlord",
-          };
+        if (!credentials?.email || !credentials?.password) {
+          return null;
         }
-        if (
-          credentials?.email === "tenant@test.com" &&
-          credentials?.password === "123"
-        ) {
-          return { id: "2", email: credentials.email, role: "tenant" };
+
+        try {
+          const auth = await prisma.authentication.findUnique({
+            where: { email: credentials.email },
+            include: { user: true },
+          });
+
+          if (!auth) {
+            return null;
+          }
+
+          if (auth.password === credentials.password) {
+            return {
+              id: auth.user.id,
+              email: auth.email,
+              name: auth.user.name,
+              role: auth.user.type.toLowerCase(),
+            };
+          }
+
+          return null;
+        } catch (error) {
+          console.error("Authentication error:", error);
+          return null;
         }
-        return null;
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        token.role = (user as any).role;
-        token.id = (user as any).id;
+      if (user && 'role' in user) {
+        token.role = user.role as string;
+
       }
       return token;
     },
     async session({ session, token }) {
-      (session as any).role = token.role;
-      (session.user as any).id = (token as any).id ?? token.sub ?? null;
-      (session.user as any).role = token.role;
+
+      if (session.user && token.role) {
+        session.user.role = token.role;
+      }
       return session;
     },
   },

@@ -74,7 +74,7 @@ export default function LoginPage() {
                   fullWidth
                 />
                 <TextField
-                  label="password"
+                  label="Password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -88,7 +88,7 @@ export default function LoginPage() {
                   size="large"
                   disabled={loading}
                 >
-                  {loading ? "Входим…" : "Войти"}
+                  {loading ? "Signing in..." : "Sign in"}
                 </Button>
               </Stack>
             </form>
