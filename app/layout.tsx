@@ -4,6 +4,7 @@ import * as React from "react";
 import { ThemeProvider, CssBaseline, Container } from "@mui/material";
 import { Header } from "../components/Header";
 import { theme } from "../styles/theme";
+import { SessionProvider } from "next-auth/react";
 
 export default function RootLayout({
   children,
@@ -13,13 +14,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <Header />
-          <Container maxWidth="md" sx={{ py: 4 }}>
-            {children}
-          </Container>
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <Header />
+            <Container maxWidth="md" sx={{ py: 4 }}>
+              {children}
+            </Container>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );
