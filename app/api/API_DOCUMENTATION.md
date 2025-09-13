@@ -120,7 +120,6 @@ Create a new energy provider.
 **Request Body:**
 ```json
 {
-  "providerId": "PROVIDER_4",
   "name": "New Energy Corp",
   "nuclearEnergyPct": 20,
   "coalEnergyPct": 10,
@@ -136,26 +135,26 @@ Create a new energy provider.
 ```bash
 curl -X POST "http://localhost:3000/api/providers" \
   -H "Content-Type: application/json" \
-  -d '{"providerId": "PROVIDER_4", "name": "New Energy Corp", "solarEnergyPct": 50, "windEnergyPct": 30, "nuclearEnergyPct": 20}'
+  -d '{"name": "New Energy Corp", "solarEnergyPct": 50, "windEnergyPct": 30, "nuclearEnergyPct": 20}'
 ```
 
 **Validation Rules:**
-- `providerId` and `name` are required
+- `name` is required (ID is auto-generated)
 - All energy percentages must sum to 100%
 - Energy percentages default to 0 if not provided
 
 **Status Codes:**
 - `201` - Created successfully
 - `400` - Validation error (missing fields or percentages don't sum to 100%)
-- `409` - Provider ID already exists
+- `409` - Provider name already exists
 - `500` - Server error
 
-### GET /api/providers/[providerId]
-Get a specific provider by ID.
+### GET /api/providers/[id]
+Get a specific provider by auto-generated ID.
 
 **Example Request:**
 ```bash
-curl "http://localhost:3000/api/providers/PROVIDER_1"
+curl "http://localhost:3000/api/providers/cm5abc123def456"
 ```
 
 **Status Codes:**
@@ -163,8 +162,8 @@ curl "http://localhost:3000/api/providers/PROVIDER_1"
 - `404` - Provider not found
 - `500` - Server error
 
-### PUT /api/providers/[providerId]
-Update an existing provider.
+### PUT /api/providers/[id]
+Update an existing provider by auto-generated ID.
 
 **Request Body:** (partial updates supported)
 ```json
@@ -178,10 +177,17 @@ Update an existing provider.
 
 **Example Request:**
 ```bash
-curl -X PUT "http://localhost:3000/api/providers/PROVIDER_1" \
+curl -X PUT "http://localhost:3000/api/providers/cm5abc123def456" \
   -H "Content-Type: application/json" \
   -d '{"name": "Updated Green Energy GmbH"}'
 ```
+
+**Detailed Functionality:**
+- Supports partial updates - only send fields you want to change
+- When updating energy percentages, validation ensures total still equals 100%
+- Uses existing values for energy types not included in update
+- Provider name can be updated independently
+- All 7 energy types can be updated: nuclear, coal, gas, miscFossil, solar, wind, miscRenewable
 
 **Validation Rules:**
 - If any energy percentage is updated, the total must still equal 100%
@@ -193,13 +199,19 @@ curl -X PUT "http://localhost:3000/api/providers/PROVIDER_1" \
 - `404` - Provider not found
 - `500` - Server error
 
-### DELETE /api/providers/[providerId]
-Delete a provider (only if not in use by any buildings).
+### DELETE /api/providers/[id]
+Delete a provider by auto-generated ID (only if not in use by any buildings).
 
 **Example Request:**
 ```bash
-curl -X DELETE "http://localhost:3000/api/providers/PROVIDER_1"
+curl -X DELETE "http://localhost:3000/api/providers/cm5abc123def456"
 ```
+
+**Detailed Functionality:**
+- Checks if provider exists before deletion
+- Prevents deletion if provider is associated with any buildings
+- Returns count of buildings that would be affected if deletion fails
+- Safe deletion with referential integrity protection
 
 **Status Codes:**
 - `200` - Deleted successfully
@@ -247,7 +259,6 @@ POST http://localhost:3000/api/providers
 Content-Type: application/json
 
 {
-  "providerId": "PROVIDER_TEST",
   "name": "Test Provider",
   "solarEnergyPct": 70,
   "windEnergyPct": 30
@@ -256,6 +267,160 @@ Content-Type: application/json
 ### Get consumption data
 GET http://localhost:3000/api/consumption?landlordId=LANDLORD_1
 ```
+
+---
+
+## Complete Provider CRUD Test Sequence
+
+Here's a complete test sequence to test Add → Edit → Delete for providers:
+
+### Step 1: Create a New Provider
+```bash
+# Create provider with balanced energy mix
+curl -X POST "http://localhost:3000/api/providers" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Energy Company",
+    "solarEnergyPct": 40,
+    "windEnergyPct": 30,
+    "nuclearEnergyPct": 20,
+    "gasEnergyPct": 10
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "id": "cm5abc123def456",
+  "name": "Test Energy Company",
+  "solarEnergyPct": 40,
+  "windEnergyPct": 30,
+  "nuclearEnergyPct": 20,
+  "gasEnergyPct": 10,
+  "coalEnergyPct": 0,
+  "miscFossilEnergyPct": 0,
+  "miscRenewableEnergyPct": 0,
+  "createdAt": "2024-01-15T10:00:00.000Z",
+  "updatedAt": "2024-01-15T10:00:00.000Z"
+}
+```
+
+**Copy the `id` from the response for the next steps!**
+
+### Step 2: Get the Created Provider
+```bash
+# Replace {PROVIDER_ID} with the actual ID from step 1
+curl "http://localhost:3000/api/providers/{PROVIDER_ID}"
+```
+
+### Step 3: Update the Provider
+```bash
+# Update energy mix - increase renewable, decrease fossil
+curl -X PUT "http://localhost:3000/api/providers/{PROVIDER_ID}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Test Energy Company",
+    "solarEnergyPct": 50,
+    "windEnergyPct": 35,
+    "miscRenewableEnergyPct": 10,
+    "nuclearEnergyPct": 5,
+    "gasEnergyPct": 0
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "id": "cm5abc123def456",
+  "name": "Updated Test Energy Company",
+  "solarEnergyPct": 50,
+  "windEnergyPct": 35,
+  "miscRenewableEnergyPct": 10,
+  "nuclearEnergyPct": 5,
+  "gasEnergyPct": 0,
+  "coalEnergyPct": 0,
+  "miscFossilEnergyPct": 0,
+  "createdAt": "2024-01-15T10:00:00.000Z",
+  "updatedAt": "2024-01-15T10:05:00.000Z"
+}
+```
+
+### Step 4: Verify the Update
+```bash
+# Get provider again to confirm changes
+curl "http://localhost:3000/api/providers/{PROVIDER_ID}"
+```
+
+### Step 5: Attempt Partial Update
+```bash
+# Test partial update - only change name
+curl -X PUT "http://localhost:3000/api/providers/{PROVIDER_ID}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Final Test Energy Company"
+  }'
+```
+
+### Step 6: Delete the Provider
+```bash
+# Delete the test provider
+curl -X DELETE "http://localhost:3000/api/providers/{PROVIDER_ID}"
+```
+
+**Expected Response:**
+```json
+{
+  "message": "Provider deleted successfully"
+}
+```
+
+### Step 7: Verify Deletion
+```bash
+# Try to get deleted provider (should return 404)
+curl "http://localhost:3000/api/providers/{PROVIDER_ID}"
+```
+
+**Expected Response:**
+```json
+{
+  "error": "Provider not found"
+}
+```
+
+### Complete Test in One Script
+```bash
+#!/bin/bash
+
+# Step 1: Create
+echo "Creating provider..."
+RESPONSE=$(curl -s -X POST "http://localhost:3000/api/providers" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Test Energy Company", "solarEnergyPct": 40, "windEnergyPct": 30, "nuclearEnergyPct": 20, "gasEnergyPct": 10}')
+
+# Extract ID from response
+PROVIDER_ID=$(echo $RESPONSE | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+echo "Created provider with ID: $PROVIDER_ID"
+
+# Step 2: Read
+echo "Getting provider..."
+curl -s "http://localhost:3000/api/providers/$PROVIDER_ID" | jq
+
+# Step 3: Update
+echo "Updating provider..."
+curl -s -X PUT "http://localhost:3000/api/providers/$PROVIDER_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Test Energy Company", "solarEnergyPct": 50, "windEnergyPct": 50}' | jq
+
+# Step 4: Delete
+echo "Deleting provider..."
+curl -s -X DELETE "http://localhost:3000/api/providers/$PROVIDER_ID" | jq
+
+# Step 5: Verify deletion
+echo "Verifying deletion (should return 404)..."
+curl -s "http://localhost:3000/api/providers/$PROVIDER_ID" | jq
+```
+
+**Note:** Replace `{PROVIDER_ID}` with the actual ID returned from the create request. The script version uses `jq` for pretty JSON formatting (install with `brew install jq` on macOS).
 
 ---
 
