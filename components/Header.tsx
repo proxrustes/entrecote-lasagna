@@ -18,6 +18,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", roles: ["landlord", "tenant"] },
   { href: "/billing", label: "Billing", roles: ["landlord", "tenant"] },
   { href: "/devices", label: "Devices", roles: ["landlord"] },
+  { href: "/providers", label: "Providers", roles: ["landlord"] },
   { href: "/settings", label: "Settings", roles: ["landlord", "tenant"] },
 ];
 
