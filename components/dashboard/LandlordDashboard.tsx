@@ -15,94 +15,65 @@ import {
 import Grid2 from "@mui/material/Grid";
 import { useSession } from "next-auth/react";
 import { ConsumptionVsGenerationChart } from "./ConsumptionVsGeneration";
-import { useEffect, useState } from "react";
-import { fetchConsumption } from "../../services/consumption";
-import { fetchGeneration } from "../../services/generation";
+import { useBuildings } from "../../services/buildings/useBuildings"; // ← поправь путь к твоему хуку
 
-const EUR_PER_KWH = 0.3;
+const EUR_PER_KWH = 0.3 as const;
+
+type RangeKey = "today" | "week" | "month" | "year";
+function getRange(k: RangeKey) {
+  const end = new Date();
+  const start = new Date(end);
+  if (k === "today") start.setHours(0, 0, 0, 0);
+  if (k === "week") start.setDate(end.getDate() - 7);
+  if (k === "month") start.setMonth(end.getMonth() - 1);
+  if (k === "year") start.setFullYear(end.getFullYear() - 1);
+  return {
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+  };
+}
 
 export function LandlordDashboard() {
   const { data: session } = useSession();
   const landlordId = (session as any)?.user?.id as string | undefined;
 
-  const [buildingIds, setBuildingIds] = useState<string[]>([]);
-  const [selectedHouse, setSelectedHouse] = useState<string>("");
-  const [tenantIds, setTenantIds] = useState<string[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<string>("all");
+  // buildings via API
+  const {
+    data: buildings,
+    isLoading: bLoading,
+    isFetching: bFetching,
+    error,
+  } = useBuildings(landlordId);
 
-  const [buildingLoading, setBuildingLoading] = useState(false);
-  const [tenantLoading, setTenantLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // selected building / tenant / time
+  const [selectedHouse, setSelectedHouse] = React.useState<string>("");
+  const [selectedTenant, setSelectedTenant] = React.useState<string>("all");
+  const [rangeKey, setRangeKey] = React.useState<RangeKey>("month");
 
-  const [sumCons, setSumCons] = useState(0);
-  const [sumGen, setSumGen] = useState(0);
+  // sums for banner
+  const [sumCons, setSumCons] = React.useState(0);
+  const [sumGen, setSumGen] = React.useState(0);
   const savings = Math.min(sumCons, sumGen) * EUR_PER_KWH;
 
-  useEffect(() => {
-    if (!landlordId) return;
-    let ignore = false;
-    (async () => {
-      try {
-        setBuildingLoading(true);
-        setError(null);
-        const [gRows, cRows] = await Promise.all([
-          fetchGeneration({ landlordId }),
-          fetchConsumption({ landlordId }),
-        ]);
-        if (ignore) return;
-        const ids = new Set<string>();
-        gRows.forEach((r) => ids.add(r.buildingId));
-        cRows.forEach((r) => ids.add(r.buildingId));
-        const arr = Array.from(ids);
-        setBuildingIds(arr);
-        setSelectedHouse((prev) => prev || arr[0] || "");
-      } catch (e: any) {
-        if (!ignore) setError(e?.message ?? "load failed");
-      } finally {
-        if (!ignore) setBuildingLoading(false);
-      }
-    })();
-    return () => {
-      ignore = true;
-    };
-  }, [landlordId]);
+  // pick default house when buildings arrive
+  React.useEffect(() => {
+    if (!selectedHouse && buildings?.length) {
+      setSelectedHouse(buildings[0].id);
+      setSelectedTenant("all");
+    }
+  }, [buildings, selectedHouse]);
 
-  useEffect(() => {
-    if (!landlordId || !selectedHouse) return;
-    let ignore = false;
-    (async () => {
-      try {
-        setTenantLoading(true);
-        setError(null);
-        const rows = await fetchConsumption({
-          landlordId,
-          buildingId: selectedHouse,
-        });
-        if (ignore) return;
-        const ids = Array.from(
-          new Set(
-            rows
-              .map((r) => r.userId)
-              .filter((uid): uid is string => !!uid && uid !== landlordId)
-          )
-        ).sort();
-        setTenantIds(ids);
-      } catch (e: any) {
-        if (!ignore) setError(e?.message ?? "load failed");
-      } finally {
-        if (!ignore) setTenantLoading(false);
-      }
-    })();
-    return () => {
-      ignore = true;
-    };
-  }, [landlordId, selectedHouse]);
-
-  if (error) return <Alert severity="error">{error}</Alert>;
-  if (!landlordId)
-    return <Alert severity="warning">No landlord ID in session</Alert>;
-  if (!buildingIds.length && !buildingLoading)
+  if (!landlordId) return <Alert severity="warning">No landlord ID</Alert>;
+  if (error) return <Alert severity="error">{String(error)}</Alert>;
+  if (!buildings?.length && !bLoading)
     return <Alert severity="info">No data</Alert>;
+
+  // current building + tenant options
+  const current = buildings?.find((b) => b.id === selectedHouse);
+  const tenantOptions =
+    current?.tenants?.map((t) => ({ id: t.id, label: t.name || t.id })) ?? [];
+
+  const { startDate, endDate } = getRange(rangeKey);
 
   return (
     <Card>
@@ -114,8 +85,9 @@ export function LandlordDashboard() {
             </Alert>
           </Grid2>
 
-          <Grid2 size={6}>
-            <FormControl fullWidth disabled={buildingLoading}>
+          {/* House */}
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <FormControl fullWidth disabled={bLoading}>
               <InputLabel>House</InputLabel>
               <Select
                 value={selectedHouse}
@@ -125,18 +97,19 @@ export function LandlordDashboard() {
                   setSelectedTenant("all");
                 }}
               >
-                {buildingIds.map((id) => (
-                  <MenuItem key={id} value={id}>
-                    {id}
+                {(buildings ?? []).map((b) => (
+                  <MenuItem key={b.id} value={b.id}>
+                    {b.address || b.buildingId || b.id}
                   </MenuItem>
                 ))}
               </Select>
-              {buildingLoading && <LinearProgress sx={{ mt: 1 }} />}
+              {(bLoading || bFetching) && <LinearProgress sx={{ mt: 1 }} />}
             </FormControl>
           </Grid2>
 
-          <Grid2 size={6}>
-            <FormControl fullWidth disabled={!selectedHouse || tenantLoading}>
+          {/* Tenant */}
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <FormControl fullWidth disabled={!current}>
               <InputLabel>Tenant</InputLabel>
               <Select
                 value={selectedTenant}
@@ -144,30 +117,51 @@ export function LandlordDashboard() {
                 onChange={(e) => setSelectedTenant(e.target.value as string)}
               >
                 <MenuItem value="all">All</MenuItem>
-                {tenantIds.map((tid) => (
-                  <MenuItem key={tid} value={tid}>
-                    {tid}
+                {tenantOptions.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    {t.label}
                   </MenuItem>
                 ))}
               </Select>
-              {tenantLoading && <LinearProgress sx={{ mt: 1 }} />}
             </FormControl>
           </Grid2>
 
+          {/* Time range */}
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <FormControl fullWidth>
+              <InputLabel>Range</InputLabel>
+              <Select
+                value={rangeKey}
+                label="Range"
+                onChange={(e) => setRangeKey(e.target.value as RangeKey)}
+              >
+                <MenuItem value="today">Today</MenuItem>
+                <MenuItem value="week">Last week</MenuItem>
+                <MenuItem value="month">Last month</MenuItem>
+                <MenuItem value="year">Last year</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid2>
+
+          {/* Chart */}
           <Grid2 size={12}>
             <Typography variant="h6" gutterBottom>
               Consumption vs Generation
             </Typography>
-            <ConsumptionVsGenerationChart
-              landlordId={landlordId}
-              houseId={selectedHouse}
-              tenantId={selectedTenant === "all" ? undefined : selectedTenant}
-              height={320}
-              onStats={({ sumConsumption, sumGeneration }) => {
-                setSumCons(sumConsumption);
-                setSumGen(sumGeneration);
-              }}
-            />
+            {selectedHouse ? (
+              <ConsumptionVsGenerationChart
+                landlordId={landlordId}
+                houseId={selectedHouse}
+                tenantId={selectedTenant === "all" ? undefined : selectedTenant}
+                height={320}
+                onStats={({ sumConsumption, sumGeneration }) => {
+                  setSumCons(sumConsumption);
+                  setSumGen(sumGeneration);
+                }}
+              />
+            ) : (
+              <Alert severity="info">Pick a house</Alert>
+            )}
           </Grid2>
         </Grid2>
       </CardContent>
