@@ -9,6 +9,35 @@ export async function GET(request: NextRequest) {
     const landlordId = searchParams.get('landlordId')
     const userId = searchParams.get('userId')
     const buildingId = searchParams.get('buildingId')
+    const period = searchParams.get('period') || '1day' // 1day, 1week, 1month, 1year
+    const endDate = searchParams.get('endDate') // ISO string, defaults to now
+
+    // Calculate time range based on period and endDate
+    const endDateTime = endDate ? new Date(endDate) : new Date()
+    let startDateTime: Date
+    let aggregationUnit: 'hour' | 'day'
+
+    switch (period) {
+      case '1day':
+        startDateTime = new Date(endDateTime.getTime() - 24 * 60 * 60 * 1000)
+        aggregationUnit = 'hour'
+        break
+      case '1week':
+        startDateTime = new Date(endDateTime.getTime() - 7 * 24 * 60 * 60 * 1000)
+        aggregationUnit = 'hour'
+        break
+      case '1month':
+        startDateTime = new Date(endDateTime.getTime() - 30 * 24 * 60 * 60 * 1000)
+        aggregationUnit = 'day'
+        break
+      case '1year':
+        startDateTime = new Date(endDateTime.getTime() - 365 * 24 * 60 * 60 * 1000)
+        aggregationUnit = 'day'
+        break
+      default:
+        startDateTime = new Date(endDateTime.getTime() - 24 * 60 * 60 * 1000)
+        aggregationUnit = 'hour'
+    }
 
     if (!landlordId) {
       return NextResponse.json(
@@ -39,7 +68,7 @@ export async function GET(request: NextRequest) {
     // Apply buildingId filter if provided
     let filteredBuildings = buildings
     if (buildingId) {
-      const landlordBuilding = buildings.find(b => b.id === buildingId)
+      const landlordBuilding = buildings.find(b => b.buildingId === buildingId)
       if (!landlordBuilding) {
         return NextResponse.json(
           { error: 'Building not found or not owned by this landlord' },
@@ -83,11 +112,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([])
     }
 
-    // Get PV generation data for devices in filtered buildings
+    // Get PV generation data for devices in filtered buildings with time filter
     const generations = await prisma.pvGeneration.findMany({
       where: {
         deviceId: {
           in: deviceIds
+        },
+        timestamp: {
+          gte: startDateTime,
+          lte: endDateTime
         }
       },
       include: {
@@ -102,17 +135,58 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Format response
-    const formattedData = generations.map(generation => ({
-      timestamp: generation.timestamp.toISOString(),
-      deviceId: generation.deviceId,
-      buildingId: generation.device.building.id,
-      kWh: generation.generationKwh
-    }))
+    // Group by aggregation unit, device and building
+    const groups = new Map<string, {
+      deviceId: string,
+      buildingId: string,
+      totalKwh: number,
+      count: number,
+      period: Date
+    }>()
 
-    // Note: userId filter doesn't directly apply to PV generation
-    // because generation is building/device-level, not user-level
-    // Frontend can filter by user consumption vs building generation as needed
+    generations.forEach(g => {
+      let period: Date
+
+      if (aggregationUnit === 'hour') {
+        period = new Date(g.timestamp)
+        period.setMinutes(0, 0, 0)
+      } else {
+        // Daily aggregation
+        period = new Date(g.timestamp)
+        period.setHours(0, 0, 0, 0)
+      }
+
+      const key = `${g.deviceId}-${period.toISOString()}`
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          deviceId: g.deviceId,
+          buildingId: g.device.building.id,
+          totalKwh: 0,
+          count: 0,
+          period
+        })
+      }
+
+      const group = groups.get(key)!
+      group.totalKwh += g.generationKwh
+      group.count += 1
+    })
+
+    const formattedData = Array.from(groups.values()).map(group => ({
+      timestamp: group.period.toISOString(),
+      deviceId: group.deviceId,
+      buildingId: group.buildingId,
+      kWh: Number(group.totalKwh.toFixed(3)),
+      dataPoints: group.count,
+      period: period,
+      aggregation: aggregationUnit,
+      timeRange: {
+        start: startDateTime.toISOString(),
+        end: endDateTime.toISOString()
+      }
+    })).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
     return NextResponse.json(formattedData)
 
   } catch (error) {

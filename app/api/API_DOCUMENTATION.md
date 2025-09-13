@@ -11,37 +11,71 @@ Currently no authentication required (development mode)
 ## Consumption Endpoints
 
 ### GET /api/consumption
-Get energy consumption data with filtering options.
+Get energy consumption data with time period aggregation and filtering options.
 
 **Parameters:**
 - `landlordId` (required) - Landlord ID for security filtering
 - `userId` (optional) - Filter by specific user
-- `buildingId` (optional) - Filter by specific building
+- `buildingId` (optional) - Filter by specific building (use buildingId like "BUILDING_1")
+- `period` (optional) - Time period: "1day", "1week", "1month", "1year" (default: "1day")
+- `endDate` (optional) - End date for time range (ISO string, defaults to now)
 
-**Example Request:**
+**Time Period Behavior:**
+- **1day/1week**: Returns hourly aggregated data
+- **1month/1year**: Returns daily aggregated data
+- **Time Range**: Calculated backwards from endDate based on period
+
+**Example Requests:**
 ```bash
-curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1&userId=CONTRACT_1"
+# Default: Last 24 hours with hourly aggregation
+curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1"
+
+# Last week with hourly data for specific building
+curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1&period=1week&buildingId=BUILDING_1"
+
+# Last month with daily aggregation
+curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1&period=1month"
+
+# Last year from specific end date
+curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1&period=1year&endDate=2024-12-31T23:59:59.000Z"
+
+# Specific user consumption for last week
+curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1&userId=CONTRACT_1&period=1week"
 ```
 
 **Response:**
 ```json
 [
   {
-    "id": "cm123...",
     "timestamp": "2024-01-15T10:00:00.000Z",
-    "consumptionKwh": 2.5,
     "userId": "CONTRACT_1",
-    "user": {
-      "name": "John Doe"
-    },
-    "buildingId": "BUILDING_1"
+    "userName": "John Doe",
+    "kWh": 15.234,
+    "dataPoints": 12,
+    "period": "1day",
+    "aggregation": "hour",
+    "timeRange": {
+      "start": "2024-01-14T10:00:00.000Z",
+      "end": "2024-01-15T10:00:00.000Z"
+    }
   }
 ]
 ```
 
+**Response Fields:**
+- `timestamp` - Start of the aggregation period (hour or day)
+- `userId` - User ID for this consumption
+- `userName` - User's display name
+- `kWh` - Total consumption for this period (aggregated)
+- `dataPoints` - Number of raw data points aggregated
+- `period` - Requested time period
+- `aggregation` - Aggregation unit used ("hour" or "day")
+- `timeRange` - Actual time range of data
+
 **Status Codes:**
 - `200` - Success
 - `400` - Missing landlordId
+- `403` - Building/user not accessible by landlord
 - `500` - Server error
 
 ---
@@ -49,37 +83,68 @@ curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1&userId=CONTRAC
 ## Generation Endpoints
 
 ### GET /api/generation
-Get PV generation data with filtering options.
+Get PV generation data with time period aggregation and filtering options.
 
 **Parameters:**
 - `landlordId` (required) - Landlord ID for security filtering
 - `userId` (optional) - Filter by user's building devices
-- `buildingId` (optional) - Filter by specific building
+- `buildingId` (optional) - Filter by specific building (use buildingId like "BUILDING_1")
+- `period` (optional) - Time period: "1day", "1week", "1month", "1year" (default: "1day")
+- `endDate` (optional) - End date for time range (ISO string, defaults to now)
 
-**Example Request:**
+**Time Period Behavior:**
+- **1day/1week**: Returns hourly aggregated data
+- **1month/1year**: Returns daily aggregated data
+- **Time Range**: Calculated backwards from endDate based on period
+
+**Example Requests:**
 ```bash
-curl "http://localhost:3000/api/generation?landlordId=LANDLORD_1&buildingId=BUILDING_1"
+# Default: Last 24 hours with hourly aggregation
+curl "http://localhost:3000/api/generation?landlordId=LANDLORD_1"
+
+# Last week with hourly data for specific building
+curl "http://localhost:3000/api/generation?landlordId=LANDLORD_1&period=1week&buildingId=BUILDING_1"
+
+# Last month with daily aggregation
+curl "http://localhost:3000/api/generation?landlordId=LANDLORD_1&period=1month"
+
+# Last year from specific end date
+curl "http://localhost:3000/api/generation?landlordId=LANDLORD_1&period=1year&endDate=2024-12-31T23:59:59.000Z"
 ```
 
 **Response:**
 ```json
 [
   {
-    "id": "cm456...",
     "timestamp": "2024-01-15T10:00:00.000Z",
-    "generationKwh": 3.2,
     "deviceId": "PV_DEVICE_1",
-    "device": {
-      "deviceId": "PV_DEVICE_1",
-      "buildingId": "BUILDING_1"
+    "buildingId": "BUILDING_1",
+    "kWh": 18.567,
+    "dataPoints": 12,
+    "period": "1day",
+    "aggregation": "hour",
+    "timeRange": {
+      "start": "2024-01-14T10:00:00.000Z",
+      "end": "2024-01-15T10:00:00.000Z"
     }
   }
 ]
 ```
 
+**Response Fields:**
+- `timestamp` - Start of the aggregation period (hour or day)
+- `deviceId` - PV device ID
+- `buildingId` - Building ID where device is located
+- `kWh` - Total generation for this period (aggregated)
+- `dataPoints` - Number of raw data points aggregated
+- `period` - Requested time period
+- `aggregation` - Aggregation unit used ("hour" or "day")
+- `timeRange` - Actual time range of data
+
 **Status Codes:**
 - `200` - Success
 - `400` - Missing landlordId
+- `403` - Building/user not accessible by landlord
 - `500` - Server error
 
 ---
@@ -234,11 +299,20 @@ curl -X POST "http://localhost:3000/api/providers" \
     "solarEnergyPct": 100
   }'
 
-# Test consumption data
+# Test consumption data - default (last 24 hours, hourly)
 curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1"
 
-# Test generation data
-curl "http://localhost:3000/api/generation?landlordId=LANDLORD_1&buildingId=BUILDING_1"
+# Test consumption - last week hourly for specific building
+curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1&period=1week&buildingId=BUILDING_1"
+
+# Test consumption - last month daily aggregation
+curl "http://localhost:3000/api/consumption?landlordId=LANDLORD_1&period=1month"
+
+# Test generation data - default (last 24 hours, hourly)
+curl "http://localhost:3000/api/generation?landlordId=LANDLORD_1"
+
+# Test generation - last year daily from specific end date
+curl "http://localhost:3000/api/generation?landlordId=LANDLORD_1&period=1year&endDate=2024-12-31T23:59:59.000Z&buildingId=BUILDING_1"
 ```
 
 ### Using Postman
@@ -264,8 +338,20 @@ Content-Type: application/json
   "windEnergyPct": 30
 }
 
-### Get consumption data
+### Get consumption data - default (24 hours, hourly)
 GET http://localhost:3000/api/consumption?landlordId=LANDLORD_1
+
+### Get consumption data - last week hourly
+GET http://localhost:3000/api/consumption?landlordId=LANDLORD_1&period=1week&buildingId=BUILDING_1
+
+### Get consumption data - last month daily
+GET http://localhost:3000/api/consumption?landlordId=LANDLORD_1&period=1month
+
+### Get generation data - default (24 hours, hourly)
+GET http://localhost:3000/api/generation?landlordId=LANDLORD_1
+
+### Get generation data - custom time range
+GET http://localhost:3000/api/generation?landlordId=LANDLORD_1&period=1year&endDate=2024-12-31T23:59:59.000Z
 ```
 
 ---
