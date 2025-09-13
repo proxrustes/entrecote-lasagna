@@ -18,7 +18,7 @@ import {
   Switch,
 } from "@mui/material";
 import { useSession } from "next-auth/react";
-import { MOCK_HOUSES as HOUSES } from "../dashboard/page";
+import { MOCK_HOUSES as HOUSES } from "../../lib/mockData";
 
 export default function SettingsPage() {
   const { data: session } = useSession();

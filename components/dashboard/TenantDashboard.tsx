@@ -1,6 +1,6 @@
 import { Grid, Card, CardContent, Typography, Box } from "@mui/material";
 import { LineChart, BarChart } from "@mui/x-charts";
-import { MOCK_HOUSES } from "../../app/dashboard/page";
+import { MOCK_HOUSES } from "../../lib/mockData";
 import { kpiForHouse } from "../../lib/kpiForHouse";
 import { CardHeader } from "./CardHeader";
 
