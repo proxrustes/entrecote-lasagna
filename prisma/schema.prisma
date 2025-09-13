@@ -27,6 +27,111 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relations
+  consumptions Consumption[]
+  contracts    Contract[]
+
   @@map("users")
+}
+
+model Tariff {
+  id              String    @id @default(cuid())
+  name            String    @unique // e.g., "TENANT_T1"
+  model           String    @default("two_price") // "two_price", "flat_rate", etc.
+  pvPricePerKwh   Float     // €0.26/kWh
+  gridPricePerKwh Float     // €0.3351/kWh
+  baseFeePerMonth Float     // €10/month
+  currency        String    @default("EUR")
+  validFrom       DateTime
+  validTo         DateTime?
+
+  // Relations
+  consumptions    Consumption[]
+  contracts       Contract[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("tariffs")
+}
+
+model PvGeneration {
+  id            String   @id @default(cuid())
+  timestamp     DateTime
+  generationKwh Float    // kWh generated
+  meterId       String?  // pv_meter identifier
+
+  createdAt     DateTime @default(now())
+
+  @@map("pv_generations")
+  @@index([timestamp])
+}
+
+model Settlement {
+  id                String    @id @default(cuid())
+  name              String    @unique // e.g., "LANDLORD_S1"
+  gridCostPerKwh    Float     // €0.3351/kWh
+  feedInPricePerKwh Float     // €0.08/kWh
+  currency          String    @default("EUR")
+  validFrom         DateTime
+  validTo           DateTime?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("settlements")
+}
+
+model Consumption {
+  id              String   @id @default(cuid())
+  timestamp       DateTime
+  consumptionKwh  Float    // kWh consumed
+  meterColumn     String   // "we1_consumption_kWh", "we2_consumption_kWh", "general_consumption_kWh"
+
+  // Relations
+  userId          String?  // Link to tenant (null for general/common consumption)
+  user            User?    @relation(fields: [userId], references: [id])
+  tariffId        String
+  tariff          Tariff   @relation(fields: [tariffId], references: [id])
+
+  createdAt       DateTime @default(now())
+
+  @@map("consumptions")
+  @@index([timestamp, userId])
+  @@index([meterColumn, timestamp])
+}
+
+model Contract {
+  id            String    @id @default(cuid())
+  contractId    String    @unique // CUST_WE1_2025, CUST_WE2_2025
+  tenantName    String    // "Mieter EG rechts", "Mieter EG links"
+  meterColumn   String    // "we1_consumption_kWh", "we2_consumption_kWh"
+  contractStart DateTime
+  contractEnd   DateTime?
+  billingCycle  String    @default("yearly")
+  baseFeeShare  Float     @default(1)
+
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  tariffId      String
+  tariff        Tariff    @relation(fields: [tariffId], references: [id])
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("contracts")
+}
+
+model GridFlow {
+  id        String   @id @default(cuid())
+  timestamp DateTime
+  importKwh Float    // Grid import (when building needs external power)
+  exportKwh Float    // Grid export (when building sends excess solar back)
+
+  createdAt DateTime @default(now())
+
+  @@map("grid_flows")
+  @@index([timestamp])
 }
 
