@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@/app/generated/prisma'
+import { PrismaClient, Prisma } from '@/app/generated/prisma'
 
 const prisma = new PrismaClient()
 
@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const landlordId = searchParams.get('landlordId')
     const userId = searchParams.get('userId')
     const buildingId = searchParams.get('buildingId')
+    const aggregation = searchParams.get('aggregation') || 'hour' // hour, day, raw
 
     if (!landlordId) {
       return NextResponse.json(
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Filter users by building
-      let buildingUserIds = landlordBuilding.tenants.map(bt => bt.tenant.id)
+      const buildingUserIds = landlordBuilding.tenants.map(bt => bt.tenant.id)
       buildingUserIds.push(landlordId) // Include landlord for this building
 
       if (userId) {
@@ -86,52 +87,113 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get consumption data
-    const consumptions = await prisma.consumption.findMany({
-      where: whereClause,
-      include: {
-        user: {
-          include: {
-            tenantBuildings: {
-              include: {
-                building: true
-              }
-            },
-            ownedBuildings: true
+    // Get consumption data based on aggregation level
+    let formattedData: any[] = []
+
+    if (aggregation === 'raw') {
+      // Raw data - limit to 1000 records to avoid 5MB limit
+      const consumptions = await prisma.consumption.findMany({
+        where: whereClause,
+        include: {
+          user: {
+            select: { name: true, type: true }
           }
-        }
-      },
-      orderBy: {
-        timestamp: 'asc'
-      }
-    })
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 1000 // Limit to prevent 5MB error
+      })
 
-    // Format response with building information
-    const formattedData = consumptions.map(consumption => {
-      // Find which building this user belongs to
-      let responseBuildingId = ''
+      formattedData = consumptions.map(c => ({
+        timestamp: c.timestamp.toISOString(),
+        userId: c.userId,
+        userName: c.user.name,
+        kWh: c.consumptionKwh
+      }))
 
-      if (consumption.user.type === 'LANDLORD') {
-        // For landlord, find which building this consumption belongs to
-        if (buildingId) {
-          responseBuildingId = buildingId
-        } else {
-          // Use first owned building as default
-          responseBuildingId = consumption.user.ownedBuildings[0]?.id || ''
-        }
+    } else {
+      // Aggregated data using Prisma's aggregation instead of raw SQL
+      if (aggregation === 'day') {
+        // Daily aggregation using Prisma groupBy
+        const aggregatedData = await prisma.consumption.groupBy({
+          by: ['userId'],
+          where: whereClause,
+          _sum: {
+            consumptionKwh: true,
+          },
+          _count: {
+            _all: true,
+          },
+        })
+
+        // Get user names
+        const userNames = await prisma.user.findMany({
+          where: {
+            id: { in: aggregatedData.map(d => d.userId) }
+          },
+          select: { id: true, name: true }
+        })
+
+        const userNameMap = Object.fromEntries(userNames.map(u => [u.id, u.name]))
+
+        formattedData = aggregatedData.map(row => ({
+          timestamp: new Date().toISOString(), // For daily, we use today's date
+          userId: row.userId,
+          userName: userNameMap[row.userId] || 'Unknown',
+          kWh: Number((row._sum.consumptionKwh || 0).toFixed(3)),
+          dataPoints: row._count._all,
+          aggregation: 'day'
+        }))
       } else {
-        // For tenant, find their building
-        const tenantBuilding = consumption.user.tenantBuildings[0]
-        responseBuildingId = tenantBuilding?.building.id || ''
-      }
+        // Hourly aggregation with simplified approach
+        const consumptions = await prisma.consumption.findMany({
+          where: whereClause,
+          include: {
+            user: {
+              select: { name: true }
+            }
+          },
+          orderBy: { timestamp: 'asc' }
+        })
 
-      return {
-        timestamp: consumption.timestamp.toISOString(),
-        userId: consumption.userId,
-        buildingId: responseBuildingId,
-        kWh: consumption.consumptionKwh
+        // Group by hour and user manually
+        const hourlyGroups = new Map<string, {
+          userId: string,
+          userName: string,
+          totalKwh: number,
+          count: number,
+          hour: Date
+        }>()
+
+        consumptions.forEach(c => {
+          const hour = new Date(c.timestamp)
+          hour.setMinutes(0, 0, 0)
+          const key = `${c.userId}-${hour.toISOString()}`
+
+          if (!hourlyGroups.has(key)) {
+            hourlyGroups.set(key, {
+              userId: c.userId,
+              userName: c.user.name,
+              totalKwh: 0,
+              count: 0,
+              hour
+            })
+          }
+
+          const group = hourlyGroups.get(key)!
+          group.totalKwh += c.consumptionKwh
+          group.count += 1
+        })
+
+        formattedData = Array.from(hourlyGroups.values()).map(group => ({
+          timestamp: group.hour.toISOString(),
+          userId: group.userId,
+          userName: group.userName,
+          kWh: Number(group.totalKwh.toFixed(3)),
+          dataPoints: group.count,
+          aggregation: 'hour'
+        })).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
       }
-    })
+    }
 
     return NextResponse.json(formattedData)
 
