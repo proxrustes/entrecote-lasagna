@@ -29,7 +29,7 @@ export async function updateProvider(
   id: string,
   patch: UpdateProviderPayload
 ): Promise<Provider> {
-  const url = `$/api/providers/${encodeURIComponent(id)}`;
+  const url = `/api/providers/${encodeURIComponent(id)}`;
   const res = await fetch(url, {
     method: "PUT",
     headers: { "content-type": "application/json" },
