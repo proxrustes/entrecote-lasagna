@@ -14,8 +14,7 @@ import {
   TableBody,
   Button,
 } from "@mui/material";
-import { MOCK_HOUSES } from "../../app/dashboard/page";
-
+import { MOCK_HOUSES } from "../../lib/mockData";
 
 export default function LandlordBilling() {
   // добавляем houseId / unitId, чтобы линкнуть форму инвойса
