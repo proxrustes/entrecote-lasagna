@@ -16,41 +16,8 @@ import Grid2 from "@mui/material/Grid";
 import { useSession } from "next-auth/react";
 import { ConsumptionVsGenerationChart } from "./ConsumptionVsGeneration";
 import { useEffect, useState } from "react";
-
-type ConsumptionRow = {
-  timestamp: string;
-  userId: string;
-  buildingId: string;
-  kWh: number;
-};
-type GenerationRow = {
-  timestamp: string;
-  deviceId: string;
-  buildingId: string;
-  kWh: number;
-};
-
-async function fetchGeneration(params: { landlordId: string }) {
-  const qs = new URLSearchParams({ landlordId: params.landlordId });
-  const res = await fetch(`/api/generation?${qs.toString()}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`generation ${res.status}`);
-  return (await res.json()) as GenerationRow[];
-}
-
-async function fetchConsumption(params: {
-  landlordId: string;
-  buildingId?: string;
-}) {
-  const qs = new URLSearchParams({ landlordId: params.landlordId });
-  if (params.buildingId) qs.set("buildingId", params.buildingId);
-  const res = await fetch(`/api/consumption?${qs.toString()}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`consumption ${res.status}`);
-  return (await res.json()) as ConsumptionRow[];
-}
+import { fetchConsumption } from "../../services/consumption";
+import { fetchGeneration } from "../../services/generation";
 
 const EUR_PER_KWH = 0.3;
 

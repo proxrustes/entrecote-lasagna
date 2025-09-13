@@ -51,7 +51,6 @@ export function DevicesTable({ rows }: { rows: DeviceRow[] }) {
               <TableCell>Last reading</TableCell>
               <TableCell align="right">kWh produced (today)</TableCell>
               <TableCell align="right">kWh produced (total)</TableCell>{" "}
-              {/* << NEW */}
             </TableRow>
           </TableHead>
           <TableBody>
