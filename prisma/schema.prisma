@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../app/generated/prisma"
@@ -14,43 +8,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserType {
-  TENANT
-  LANDLORD
-}
-
 model User {
-  id         String   @id @default(cuid())
-  name       String
-  address    String
-  iban       String
-  type       UserType
-  contractId String?  // Only for tenants
-
-  // Relations
-  authentication Authentication?
-  consumptions   Consumption[]
-  costs          Cost[]
-  ownedBuildings Building[]     @relation("LandlordBuildings")
+  id              String           @id @default(cuid())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  address         String
+  contractId      String?
+  iban            String
+  name            String
+  type            UserType
+  authentication  Authentication?
   tenantBuildings BuildingTenant[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  ownedBuildings  Building[]       @relation("LandlordBuildings")
+  consumptions    Consumption[]
+  costs           Cost[]
 
   @@map("users")
 }
 
 model Authentication {
-  id       String @id @default(cuid())
-  email    String @unique
-  password String
-
-  // Relations
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  userId    String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("authentications")
 }
@@ -59,129 +42,113 @@ model Consumption {
   id             String   @id @default(cuid())
   timestamp      DateTime
   consumptionKwh Float
+  userId         String
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
 
-  // Relations
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@map("consumptions")
   @@index([timestamp, userId])
+  @@map("consumptions")
 }
 
 model PvGeneration {
   id            String   @id @default(cuid())
   timestamp     DateTime
   generationKwh Float
+  createdAt     DateTime @default(now())
   deviceId      String
+  device        Device   @relation(fields: [deviceId], references: [id])
 
-  // Relations
-  device Device @relation(fields: [deviceId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@map("pv_generations")
   @@index([timestamp])
+  @@map("pv_generations")
 }
 
 model Cost {
-  id         String @id @default(cuid())
-  pvCost     Float
-  gridCost   Float
-  baseFee    Float
-  currency   String @default("EUR")
-
-  // Relations - only for tenants
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
+  id        String   @id @default(cuid())
+  pvCost    Float
+  gridCost  Float
+  baseFee   Float
+  currency  String   @default("EUR")
+  userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
 
   @@map("costs")
 }
 
 model Building {
-  id         String @id @default(cuid())
-  buildingId String @unique
+  id         String           @id @default(cuid())
+  buildingId String           @unique
   address    String
   providerId String
-
-  // Relations
   landlordId String
-  landlord   User                @relation("LandlordBuildings", fields: [landlordId], references: [id])
-  provider   Provider            @relation(fields: [providerId], references: [id])
-  devices    Device[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
   tenants    BuildingTenant[]
+  landlord   User             @relation("LandlordBuildings", fields: [landlordId], references: [id])
+  provider   Provider         @relation(fields: [providerId], references: [id])
+  devices    Device[]
   settlement Settlement?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@map("buildings")
 }
 
 model BuildingTenant {
-  id String @id @default(cuid())
-
-  // Relations
+  id         String   @id @default(cuid())
   buildingId String
-  building   Building @relation(fields: [buildingId], references: [id])
   tenantId   String
+  createdAt  DateTime @default(now())
+  building   Building @relation(fields: [buildingId], references: [id])
   tenant     User     @relation(fields: [tenantId], references: [id])
 
-  createdAt DateTime @default(now())
-
-  @@map("building_tenants")
   @@unique([buildingId, tenantId])
+  @@map("building_tenants")
 }
 
 model Device {
-  id         String @id @default(cuid())
-  deviceId   String @unique
-  status     String
-  buildingId String
-
-  // Relations
-  building      Building      @relation(fields: [buildingId], references: [id])
+  id            String         @id @default(cuid())
+  deviceId      String         @unique
+  status        String
+  buildingId    String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  building      Building       @relation(fields: [buildingId], references: [id])
   pvGenerations PvGeneration[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@map("devices")
 }
 
 model Provider {
-  id                String @id @default(cuid())
-  providerId        String @unique
-  name              String
-  windEnergyPct     Float
-  solarEnergyPct    Float
-  nuclearEnergyPct  Float
-
-  // Relations
-  buildings Building[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                     String     @id @default(cuid())
+  name                   String
+  windEnergyPct          Float      @default(0)
+  solarEnergyPct         Float      @default(0)
+  nuclearEnergyPct       Float      @default(0)
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  coalEnergyPct          Float      @default(0)
+  gasEnergyPct           Float      @default(0)
+  miscFossilEnergyPct    Float      @default(0)
+  miscRenewableEnergyPct Float      @default(0)
+  buildings              Building[]
 
   @@map("providers")
 }
 
 model Settlement {
-  id            String @id @default(cuid())
-  gridCost      Float
-  feedingPrice  Float
-  currency      String @default("EUR")
-
-  // Relations
-  buildingId String   @unique
-  building   Building @relation(fields: [buildingId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  currency     String   @default("EUR")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  buildingId   String   @unique
+  feedingPrice Float
+  gridCost     Float
+  building     Building @relation(fields: [buildingId], references: [id])
 
   @@map("settlements")
+}
+
+enum UserType {
+  TENANT
+  LANDLORD
 }

@@ -12,39 +12,48 @@ async function main() {
     'Sonnenallee 42, 10999 Berlin'
   ]
 
-  // 1. Create mock providers
+  // 1. Create mock providers (delete existing first to avoid duplicates)
+  await prisma.provider.deleteMany({
+    where: {
+      name: { in: ['Green Energy GmbH', 'Clean Power AG', 'Solar Solutions Ltd'] }
+    }
+  })
+
   const providers = await Promise.all([
-    prisma.provider.upsert({
-      where: { providerId: 'PROVIDER_1' },
-      update: {},
-      create: {
-        providerId: 'PROVIDER_1',
+    prisma.provider.create({
+      data: {
         name: 'Green Energy GmbH',
         windEnergyPct: 40.0,
-        solarEnergyPct: 50.0,
+        solarEnergyPct: 35.0,
+        miscRenewableEnergyPct: 15.0,
         nuclearEnergyPct: 10.0,
+        coalEnergyPct: 0.0,
+        gasEnergyPct: 0.0,
+        miscFossilEnergyPct: 0.0,
       },
     }),
-    prisma.provider.upsert({
-      where: { providerId: 'PROVIDER_2' },
-      update: {},
-      create: {
-        providerId: 'PROVIDER_2',
+    prisma.provider.create({
+      data: {
         name: 'Clean Power AG',
-        windEnergyPct: 60.0,
-        solarEnergyPct: 30.0,
-        nuclearEnergyPct: 10.0,
+        windEnergyPct: 45.0,
+        solarEnergyPct: 25.0,
+        miscRenewableEnergyPct: 10.0,
+        nuclearEnergyPct: 20.0,
+        coalEnergyPct: 0.0,
+        gasEnergyPct: 0.0,
+        miscFossilEnergyPct: 0.0,
       },
     }),
-    prisma.provider.upsert({
-      where: { providerId: 'PROVIDER_3' },
-      update: {},
-      create: {
-        providerId: 'PROVIDER_3',
+    prisma.provider.create({
+      data: {
         name: 'Solar Solutions Ltd',
-        windEnergyPct: 20.0,
-        solarEnergyPct: 70.0,
-        nuclearEnergyPct: 10.0,
+        windEnergyPct: 15.0,
+        solarEnergyPct: 60.0,
+        miscRenewableEnergyPct: 5.0,
+        nuclearEnergyPct: 0.0,
+        coalEnergyPct: 10.0,
+        gasEnergyPct: 10.0,
+        miscFossilEnergyPct: 0.0,
       },
     }),
   ])
@@ -227,8 +236,24 @@ async function main() {
   // 9. Seed consumption and PV generation from hackathon dataset
   const datasetPath = path.join(__dirname, 'data', 'hackathon_dataset_prepared_CORRECTED.csv')
   const datasetData = fs.readFileSync(datasetPath, 'utf-8')
-  const datasetLines = datasetData.split('\n').filter(line => line.trim()).slice(1).slice(0, 100) // Limit to first 100 rows for testing
+  const datasetLines = datasetData.split('\n').filter(line => line.trim()).slice(1) // Remove header and empty lines
 
+  console.log(`📊 Processing ${datasetLines.length} rows of energy data...`)
+
+  // Prepare batch arrays
+  const consumptionRecords: any[] = []
+  const pvGenerationRecords: any[] = []
+
+  // Helper function to safely parse float and check for NaN
+  const safeParseFloat = (value: string): number | null => {
+    if (!value || value.trim() === '' || value.toLowerCase() === 'nan') {
+      return null
+    }
+    const parsed = parseFloat(value.trim())
+    return isNaN(parsed) ? null : parsed
+  }
+
+  // Process each line and collect records
   for (const line of datasetLines) {
     const [timestamp, we1Consumption, we2Consumption, generalConsumption, , pvGeneration] = line.split(',').map(field => field.trim())
 
@@ -236,58 +261,71 @@ async function main() {
 
     const parsedTimestamp = new Date(timestamp)
 
-    // Create consumption records
-    if (we1Consumption && parseFloat(we1Consumption) > 0) {
-      await prisma.consumption.create({
-        data: {
-          timestamp: parsedTimestamp,
-          consumptionKwh: parseFloat(we1Consumption),
-          userId: tenants[0].id, // we1 = first tenant
-        }
+    // Skip invalid timestamps
+    if (isNaN(parsedTimestamp.getTime())) continue
+
+    // Add consumption records with NaN validation
+    const we1Value = safeParseFloat(we1Consumption)
+    if (we1Value && we1Value > 0) {
+      consumptionRecords.push({
+        timestamp: parsedTimestamp,
+        consumptionKwh: we1Value,
+        userId: tenants[0].id,
       })
     }
 
-    if (we2Consumption && parseFloat(we2Consumption) > 0) {
-      await prisma.consumption.create({
-        data: {
-          timestamp: parsedTimestamp,
-          consumptionKwh: parseFloat(we2Consumption),
-          userId: tenants[1] ? tenants[1].id : tenants[0].id, // we2 = second tenant or first if only one
-        }
+    const we2Value = safeParseFloat(we2Consumption)
+    if (we2Value && we2Value > 0) {
+      consumptionRecords.push({
+        timestamp: parsedTimestamp,
+        consumptionKwh: we2Value,
+        userId: tenants[1] ? tenants[1].id : tenants[0].id,
       })
     }
 
-    if (generalConsumption && parseFloat(generalConsumption) > 0) {
-      await prisma.consumption.create({
-        data: {
-          timestamp: parsedTimestamp,
-          consumptionKwh: parseFloat(generalConsumption),
-          userId: landlord.id, // general consumption linked to landlord
-        }
+    const generalValue = safeParseFloat(generalConsumption)
+    if (generalValue && generalValue > 0) {
+      consumptionRecords.push({
+        timestamp: parsedTimestamp,
+        consumptionKwh: generalValue,
+        userId: landlord.id,
       })
     }
 
-    // Create PV generation records for multiple devices (same generation data)
-    if (pvGeneration && parseFloat(pvGeneration) > 0) {
-      const generationValue = parseFloat(pvGeneration)
-
+    // Add PV generation records with NaN validation
+    const pvValue = safeParseFloat(pvGeneration)
+    if (pvValue && pvValue > 0) {
       // Split generation between devices
-      await prisma.pvGeneration.create({
-        data: {
-          timestamp: parsedTimestamp,
-          generationKwh: generationValue * 0.6, // 60% from device 1
-          deviceId: devices[0].id,
-        }
+      pvGenerationRecords.push({
+        timestamp: parsedTimestamp,
+        generationKwh: pvValue * 0.6,
+        deviceId: devices[0].id,
       })
 
-      await prisma.pvGeneration.create({
-        data: {
-          timestamp: parsedTimestamp,
-          generationKwh: generationValue * 0.4, // 40% from device 2
-          deviceId: devices[1].id,
-        }
+      pvGenerationRecords.push({
+        timestamp: parsedTimestamp,
+        generationKwh: pvValue * 0.4,
+        deviceId: devices[1].id,
       })
     }
+  }
+
+  // Batch insert consumption records
+  console.log(`💾 Inserting ${consumptionRecords.length} consumption records...`)
+  if (consumptionRecords.length > 0) {
+    await prisma.consumption.createMany({
+      data: consumptionRecords,
+      skipDuplicates: true
+    })
+  }
+
+  // Batch insert PV generation records
+  console.log(`☀️ Inserting ${pvGenerationRecords.length} PV generation records...`)
+  if (pvGenerationRecords.length > 0) {
+    await prisma.pvGeneration.createMany({
+      data: pvGenerationRecords,
+      skipDuplicates: true
+    })
   }
 
   console.log(`✅ Seeded ${tenants.length} tenants, 1 landlord, 1 building, ${providers.length} providers, ${devices.length} devices, and consumption/generation data`)
