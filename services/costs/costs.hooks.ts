@@ -19,7 +19,6 @@ export function useTenantCosts(params?: Params) {
     ],
     enabled: !!params?.userId,
     queryFn: () => fetchTenantCosts(params as Params),
-    placeholderData: (p) => p,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
