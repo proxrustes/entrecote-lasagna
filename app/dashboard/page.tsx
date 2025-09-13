@@ -96,6 +96,6 @@ export const MOCK_HOUSES = [
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const role = (session as any)?.role ?? "tenant"; // default mock
+  const role = (session as any)?.role ?? "tenant";
   return role === "landlord" ? <LandlordDashboard /> : <TenantDashboard />;
 }

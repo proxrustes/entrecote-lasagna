@@ -14,8 +14,12 @@ export function TenantDashboard() {
     <Grid container spacing={3}>
       <Grid size={12}>
         <Card>
-          <CardContent>
-            <CardHeader address={house.address} name={unit.name} />
+          <CardContent sx={{ pb: 2 }}>
+            <CardHeader
+              address={house.address}
+              name={unit.name}
+              contractNumber="12345"
+            />
           </CardContent>
         </Card>
       </Grid>
