@@ -10,7 +10,7 @@ import {
   TableBody,
   Chip,
 } from "@mui/material";
-import { MOCK_HOUSES as HOUSES } from "../../app/dashboard/page";
+import { MOCK_HOUSES as HOUSES } from "../../lib/mockData";
 
 // --- landlord view (overview across houses/units)
 export function LandlordBilling() {
