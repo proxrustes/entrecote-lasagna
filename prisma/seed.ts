@@ -7,7 +7,10 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Starting database seeding...')
 
-  const buildingAddress = 'Musterstraße 1, 12345 Berlin'
+  const buildingAddresses = [
+    'Musterstraße 1, 12345 Berlin',
+    'Sonnenallee 42, 10999 Berlin'
+  ]
 
   // 1. Create mock providers
   const providers = await Promise.all([
@@ -53,7 +56,7 @@ async function main() {
     create: {
       id: 'LANDLORD_1',
       name: 'Landlord Schmidt',
-      address: buildingAddress,
+      address: buildingAddresses[0],
       iban: 'DE89370400440532013000',
       type: UserType.LANDLORD,
     },
@@ -77,7 +80,7 @@ async function main() {
       update: {},
       create: {
         buildingId: 'BUILDING_1',
-        address: buildingAddress,
+        address: buildingAddresses[0],
         landlordId: landlord.id,
         providerId: providers[0].id,
       },
@@ -87,9 +90,9 @@ async function main() {
       update: {},
       create: {
         buildingId: 'BUILDING_2',
-        address: buildingAddress,
+        address: buildingAddresses[1],
         landlordId: landlord.id,
-        providerId: providers[0].id,
+        providerId: providers[1].id,
       },
     })
   ])
@@ -112,7 +115,7 @@ async function main() {
     },
   })
 
-  // 6. Create mock devices
+  // 6. Create mock devices (distribute across buildings)
   const devices = await Promise.all([
     prisma.device.upsert({
       where: { deviceId: 'PV_DEVICE_1' },
@@ -130,6 +133,15 @@ async function main() {
         deviceId: 'PV_DEVICE_2',
         status: 'active',
         buildingId: building[0].id,
+      },
+    }),
+    prisma.device.upsert({
+      where: { deviceId: 'PV_DEVICE_3' },
+      update: {},
+      create: {
+        deviceId: 'PV_DEVICE_3',
+        status: 'active',
+        buildingId: building[1].id,
       },
     }),
   ])
@@ -153,7 +165,7 @@ async function main() {
       create: {
         id: contractId,
         name: tenantName,
-        address: buildingAddress,
+        address: buildingAddresses[i % 2], // Alternate between building addresses
         iban: mockIban,
         type: UserType.TENANT,
         contractId: contractId,
@@ -196,15 +208,20 @@ async function main() {
   const [, , pvPrice, gridPrice, baseFee] = tariffLines[0].split(',').map(field => field.trim())
 
   for (const tenant of tenants) {
-    await prisma.cost.create({
-      data: {
-        userId: tenant.id,
-        pvCost: parseFloat(pvPrice),
-        gridCost: parseFloat(gridPrice),
-        baseFee: parseFloat(baseFee),
-        currency: 'EUR',
-      },
-    })
+    try {
+      await prisma.cost.create({
+        data: {
+          userId: tenant.id,
+          pvCost: parseFloat(pvPrice),
+          gridCost: parseFloat(gridPrice),
+          baseFee: parseFloat(baseFee),
+          currency: 'EUR',
+        },
+      })
+    } catch (error) {
+      // Skip if cost record already exists for this tenant
+      console.log(`Cost record already exists for tenant ${tenant.id}`)
+    }
   }
 
   // 9. Seed consumption and PV generation from hackathon dataset
@@ -250,13 +267,24 @@ async function main() {
       })
     }
 
-    // Create PV generation records
+    // Create PV generation records for multiple devices (same generation data)
     if (pvGeneration && parseFloat(pvGeneration) > 0) {
+      const generationValue = parseFloat(pvGeneration)
+
+      // Split generation between devices
       await prisma.pvGeneration.create({
         data: {
           timestamp: parsedTimestamp,
-          generationKwh: parseFloat(pvGeneration),
-          deviceId: devices[0].id, // Use first PV device
+          generationKwh: generationValue * 0.6, // 60% from device 1
+          deviceId: devices[0].id,
+        }
+      })
+
+      await prisma.pvGeneration.create({
+        data: {
+          timestamp: parsedTimestamp,
+          generationKwh: generationValue * 0.4, // 40% from device 2
+          deviceId: devices[1].id,
         }
       })
     }
