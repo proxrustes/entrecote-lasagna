@@ -17,10 +17,10 @@ import {
   Grid,
 } from "@mui/material";
 import { useSearchParams, useRouter } from "next/navigation";
-import { MOCK_HOUSES } from "../../dashboard/page";
 import { MixPie } from "../../../components/providers/MixPie";
 import { INITIAL_PROVIDERS } from "../../providers/page";
 import { Provider } from "../../../types/Provider";
+import { MOCK_HOUSES } from "../../../lib/mockData";
 
 const HOUSE_PROVIDER_MAP: Record<string, string> = {
   "house-1": "p1",
