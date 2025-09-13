@@ -12,13 +12,16 @@ async function main() {
     'Sonnenallee 42, 10999 Berlin'
   ]
 
-  // 1. Create mock providers
+  // 1. Create mock providers (delete existing first to avoid duplicates)
+  await prisma.provider.deleteMany({
+    where: {
+      name: { in: ['Green Energy GmbH', 'Clean Power AG', 'Solar Solutions Ltd'] }
+    }
+  })
+
   const providers = await Promise.all([
-    prisma.provider.upsert({
-      where: { providerId: 'PROVIDER_1' },
-      update: {},
-      create: {
-        providerId: 'PROVIDER_1',
+    prisma.provider.create({
+      data: {
         name: 'Green Energy GmbH',
         windEnergyPct: 40.0,
         solarEnergyPct: 35.0,
@@ -29,11 +32,8 @@ async function main() {
         miscFossilEnergyPct: 0.0,
       },
     }),
-    prisma.provider.upsert({
-      where: { providerId: 'PROVIDER_2' },
-      update: {},
-      create: {
-        providerId: 'PROVIDER_2',
+    prisma.provider.create({
+      data: {
         name: 'Clean Power AG',
         windEnergyPct: 45.0,
         solarEnergyPct: 25.0,
@@ -44,11 +44,8 @@ async function main() {
         miscFossilEnergyPct: 0.0,
       },
     }),
-    prisma.provider.upsert({
-      where: { providerId: 'PROVIDER_3' },
-      update: {},
-      create: {
-        providerId: 'PROVIDER_3',
+    prisma.provider.create({
+      data: {
         name: 'Solar Solutions Ltd',
         windEnergyPct: 15.0,
         solarEnergyPct: 60.0,

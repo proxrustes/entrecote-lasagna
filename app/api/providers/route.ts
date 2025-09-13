@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const {
-      providerId,
       name,
       nuclearEnergyPct,
       coalEnergyPct,
@@ -42,9 +41,9 @@ export async function POST(request: NextRequest) {
     } = body
 
     // Validation
-    if (!providerId || !name) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'providerId and name are required' },
+        { error: 'name is required' },
         { status: 400 }
       )
     }
@@ -67,7 +66,6 @@ export async function POST(request: NextRequest) {
 
     const provider = await prisma.provider.create({
       data: {
-        providerId,
         name,
         nuclearEnergyPct: nuclearEnergyPct || 0,
         coalEnergyPct: coalEnergyPct || 0,

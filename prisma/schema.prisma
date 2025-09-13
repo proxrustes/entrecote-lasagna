@@ -155,7 +155,6 @@ model Device {
 
 model Provider {
   id                      String @id @default(cuid())
-  providerId              String @unique
   name                    String
   nuclearEnergyPct        Float  @default(0)
   coalEnergyPct           Float  @default(0)
