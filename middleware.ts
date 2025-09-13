@@ -4,7 +4,7 @@ export default withAuth({
   callbacks: {
     authorized: ({ token, req }) => {
       const path = req.nextUrl.pathname;
-
+      if (path === "/") return true;
       if (!token) return false;
 
       if (path.startsWith("/devices") && token.role !== "landlord") {

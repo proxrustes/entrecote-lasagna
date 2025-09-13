@@ -12,7 +12,7 @@ import Box from "@mui/material/Box";
 import Avatar from "@mui/material/Avatar";
 import { usePathname } from "next/navigation";
 import Grid3x3RoundedIcon from "@mui/icons-material/Grid3x3Rounded";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", roles: ["landlord", "tenant"] },
@@ -69,7 +69,7 @@ export function Header() {
             <MenuItem component={Link} href="/profile" onClick={handleClose}>
               Profile
             </MenuItem>
-            <MenuItem component={Link} href="/logout" onClick={handleClose}>
+            <MenuItem onClick={() => signOut({ callbackUrl: "/" })}>
               Logout
             </MenuItem>
           </Menu>
