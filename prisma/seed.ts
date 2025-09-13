@@ -1,55 +1,62 @@
 import { PrismaClient, UserRole } from '../app/generated/prisma'
+import * as fs from 'fs'
+import * as path from 'path'
 
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('🌱 Seeding database for RoofShare solar energy app...')
+  console.log('🌱 Starting database seeding...')
 
-  // Create sample tenants (matching hackathon dataset)
-  const tenant1 = await prisma.user.upsert({
-    where: { email: 'mieter-eg-rechts@roofshare.de' },
-    update: {},
-    create: {
-      email: 'mieter-eg-rechts@roofshare.de',
-      password: 'demo_password_123', // In production, use bcrypt
-      role: UserRole.TENANT,
-    },
-  })
+  // Read tenant contracts
+  const contractsPath = path.join(__dirname, 'data', 'contracts_yearly.csv')
+  const contractsData = fs.readFileSync(contractsPath, 'utf-8')
+  const contractLines = contractsData.split('\n').filter(line => line.trim()).slice(1)
 
-  const tenant2 = await prisma.user.upsert({
-    where: { email: 'mieter-eg-links@roofshare.de' },
-    update: {},
-    create: {
-      email: 'mieter-eg-links@roofshare.de',
-      password: 'demo_password_456', // In production, use bcrypt
-      role: UserRole.TENANT,
-    },
-  })
+  // Create tenants from contracts
+  for (const line of contractLines) {
+    const [contractId, tenantName] = line.split(',').map(field => field.trim())
 
-  // Create sample landlord
-  const landlord = await prisma.user.upsert({
-    where: { email: 'vermieter@roofshare.de' },
-    update: {},
-    create: {
-      email: 'vermieter@roofshare.de',
-      password: 'demo_password_789', // In production, use bcrypt
-      role: UserRole.LANDLORD,
-    },
-  })
+    const email = `${tenantName.toLowerCase().replace(/\s+/g, '-')}@roofshare.de`
 
-  console.log('✅ Created sample users:')
-  console.log(`   👤 Tenant 1: ${tenant1.email}`)
-  console.log(`   👤 Tenant 2: ${tenant2.email}`)
-  console.log(`   🏠 Landlord: ${landlord.email}`)
-  console.log('\n🎉 Database seeding completed!')
+    await prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: {
+        id: contractId,
+        email,
+        password: 'demo_password_123',
+        role: UserRole.TENANT,
+      },
+    })
+  }
+
+  // Read landlord settlement
+  const landlordPath = path.join(__dirname, 'data', 'landlord_settlement.csv')
+  const landlordData = fs.readFileSync(landlordPath, 'utf-8')
+  const landlordLines = landlordData.split('\n').filter(line => line.trim()).slice(1)
+
+  // Create landlord
+  for (const line of landlordLines) {
+    const [settlementId] = line.split(',').map(field => field.trim())
+
+    await prisma.user.upsert({
+      where: { email: 'landlord@roofshare.de' },
+      update: {},
+      create: {
+        id: settlementId,
+        email: 'landlord@roofshare.de',
+        password: 'demo_password_456',
+        role: UserRole.LANDLORD,
+      },
+    })
+  }
+
+  console.log(`✅ Seeded ${contractLines.length} tenants and ${landlordLines.length} landlord`)
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect()
-  })
-  .catch(async (e) => {
-    console.error(e)
-    await prisma.$disconnect()
-    process.exit(1)
-  })
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+}).finally(async () => {
+  await prisma.$disconnect()
+})

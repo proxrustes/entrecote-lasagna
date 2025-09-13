@@ -1,0 +1,2 @@
+tenant_tariff_id,model,pv_price_eur_per_kWh,grid_price_eur_per_kWh,base_fee_eur_per_month,currency,notes
+TENANT_T1,two_price,0.26,0.3351,10.0,EUR,"Mietertarif (PV 26 ct, Netz 33,51 ct, GG 10 €)"
