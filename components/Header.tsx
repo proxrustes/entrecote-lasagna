@@ -12,12 +12,13 @@ import Box from "@mui/material/Box";
 import Avatar from "@mui/material/Avatar";
 import { usePathname } from "next/navigation";
 import Grid3x3RoundedIcon from "@mui/icons-material/Grid3x3Rounded";
+import { signOut, useSession } from "next-auth/react";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/billing", label: "Billing" },
-  { href: "/devices", label: "Devices" },
-  { href: "/settings", label: "Settings" },
+  { href: "/dashboard", label: "Dashboard", roles: ["landlord", "tenant"] },
+  { href: "/billing", label: "Billing", roles: ["landlord", "tenant"] },
+  { href: "/devices", label: "Devices", roles: ["landlord"] },
+  { href: "/settings", label: "Settings", roles: ["landlord", "tenant"] },
 ];
 
 export function Header() {
@@ -28,7 +29,8 @@ export function Header() {
   const handleMenu = (e: React.MouseEvent<HTMLElement>) =>
     setAnchorEl(e.currentTarget);
   const handleClose = () => setAnchorEl(null);
-
+  const { data: session } = useSession();
+  const role = (session as any)?.role;
   return (
     <AppBar
       position="sticky"
@@ -42,7 +44,7 @@ export function Header() {
           RoofShare
         </Typography>
         <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
-          {NAV.map((i) => (
+          {NAV.filter((item) => item.roles.includes(role)).map((i) => (
             <Button
               key={i.href}
               component={Link}
@@ -67,7 +69,7 @@ export function Header() {
             <MenuItem component={Link} href="/profile" onClick={handleClose}>
               Profile
             </MenuItem>
-            <MenuItem component={Link} href="/logout" onClick={handleClose}>
+            <MenuItem onClick={() => signOut({ callbackUrl: "/" })}>
               Logout
             </MenuItem>
           </Menu>
