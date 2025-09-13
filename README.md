@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RoofShare - Solar Energy Hackathon Project
 
-## Getting Started
+A Next.js application for the "Dach für Dach" hackathon focused on democratizing solar energy access in German apartment buildings.
 
-First, run the development server:
+## 🌞 Project Overview
 
+This project addresses the problem that only 1% of apartment buildings in Germany have solar panels, leaving 50% of Germans missing out on affordable, clean energy. We're building digital solutions to make solar energy more transparent, affordable, and engaging for apartment communities.
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+
+### Setup
 ```bash
+# Install dependencies
+npm install
+
+# Start local PostgreSQL database
+npm run db:dev
+
+# Run database migrations (in a new terminal)
+npm run db:migrate
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit [http://localhost:3000](http://localhost:3000) to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Database Management
+- **View data**: `npm run db:studio` → [http://localhost:5555](http://localhost:5555)
+- **Seed data**: `npm run db:seed`
+- **Reset database**: `npm run db:reset`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📊 Dataset
 
-## Learn More
+The hackathon dataset is located in `/local/Dataset/` with:
+- Smart meter data from a 2-tenant building
+- Solar PV generation data
+- Billing templates and tariff information
 
-To learn more about Next.js, take a look at the following resources:
+## 🛠️ Tech Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Frontend**: Next.js 15, React 19, TypeScript, Material-UI v7
+- **Backend**: Prisma ORM with PostgreSQL
+- **Styling**: Material-UI with custom solar-themed colors
+- **Development**: ESLint, TypeScript strict mode
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📁 Project Structure
 
-## Deploy on Vercel
+```
+app/                 # Next.js App Router pages
+components/          # Reusable React components
+lib/                 # Utility functions (Prisma client)
+prisma/              # Database schema and migrations
+local/               # Hackathon dataset and documentation
+styles/              # Theming and global styles
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🤝 Collaboration
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- See `CLAUDE.md` for detailed development guidance
+- Use feature branches for new functionality
+- Database schema changes require migrations
+- Follow existing code patterns and Material-UI theme
+
+## 📋 Available Scripts
+
+### Development
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run type-check` - TypeScript validation
+- `npm run lint` - ESLint code checking
+
+### Database
+- `npm run db:dev` - Start local PostgreSQL
+- `npm run db:migrate` - Run migrations
+- `npm run db:generate` - Generate Prisma client
+- `npm run db:studio` - Open database GUI
+- `npm run db:seed` - Add sample data
+- `npm run db:reset` - Reset database
