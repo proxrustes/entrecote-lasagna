@@ -1,4 +1,4 @@
-import { PrismaClient, UserType } from '../app/generated/prisma'
+import { PrismaClient, UserType } from '@/app/generated/prisma'
 import * as fs from 'fs'
 import * as path from 'path'
 
