@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@/app/generated/prisma'
+import { allocateTenantEnergy } from '@/lib/energy/allocation'
 
 const prisma = new PrismaClient()
 
@@ -55,63 +56,38 @@ export async function GET(request: NextRequest) {
 
     const building = tenant.tenantBuildings[0].building
 
-    // Get tenant's consumption
+    // Per-interval allocation using building totals and PV in the same window
     const tenantConsumptions = await prisma.consumption.findMany({
       where: {
         userId,
-        timestamp: {
-          gte: timeStart,
-          lte: timeEnd
-        }
-      }
+        timestamp: { gte: timeStart, lte: timeEnd },
+      },
+      orderBy: { timestamp: 'asc' },
     })
 
-    const tenantConsumptionKwh = tenantConsumptions.reduce((sum, c) => sum + c.consumptionKwh, 0)
-
-    // Get all consumption (tenants + landlord) for this building
     const tenantIds = building.tenants.map(bt => bt.tenantId)
     const allUserIds = [...tenantIds, building.landlordId]
 
     const allConsumptions = await prisma.consumption.findMany({
       where: {
         userId: { in: allUserIds },
-        timestamp: {
-          gte: timeStart,
-          lte: timeEnd
-        }
-      }
+        timestamp: { gte: timeStart, lte: timeEnd },
+      },
+      orderBy: { timestamp: 'asc' },
     })
 
-    const totalConsumptionKwh = allConsumptions.reduce((sum, c) => sum + c.consumptionKwh, 0)
-
-    // Get total PV generation for this building
     const pvGenerations = await prisma.pvGeneration.findMany({
       where: {
-        device: {
-          buildingId: building.id
-        },
-        timestamp: {
-          gte: timeStart,
-          lte: timeEnd
-        }
-      }
+        device: { buildingId: building.id },
+        timestamp: { gte: timeStart, lte: timeEnd },
+      },
+      orderBy: { timestamp: 'asc' },
     })
 
-    const totalPvGenerationKwh = pvGenerations.reduce((sum, pv) => sum + pv.generationKwh, 0)
-
-    // Calculate tenant's PV allocation
-    let tenantPvKwh = 0
-    if (totalPvGenerationKwh >= totalConsumptionKwh) {
-      // Sufficient PV: tenant can use 100% PV for their consumption
-      tenantPvKwh = tenantConsumptionKwh
-    } else {
-      // Insufficient PV: proportional allocation
-      tenantPvKwh = totalConsumptionKwh > 0
-        ? (tenantConsumptionKwh / totalConsumptionKwh) * totalPvGenerationKwh
-        : 0
-    }
-
-    const tenantGridKwh = tenantConsumptionKwh - tenantPvKwh
+    const alloc = allocateTenantEnergy(tenantConsumptions, allConsumptions, pvGenerations)
+    const tenantPvKwh = alloc.pvKwh
+    const tenantGridKwh = alloc.gridKwh
+    const tenantConsumptionKwh = alloc.totalKwh
 
     // Get tenant's cost rates
     const tenantCost = await prisma.cost.findFirst({
@@ -132,10 +108,7 @@ export async function GET(request: NextRequest) {
         gridConsumption: Number(tenantGridKwh.toFixed(3)),
         totalConsumption: Number(tenantConsumptionKwh.toFixed(3)),
         unit: 'kWh',
-        timeRange: {
-          start: timeStart,
-          end: timeEnd
-        }
+        timeRange: { start: timeStart, end: timeEnd }
       })
     } else {
       // Return money amounts (default)
@@ -156,10 +129,7 @@ export async function GET(request: NextRequest) {
           pvRate: tenantCost.pvCost,
           gridRate: tenantCost.gridCost
         },
-        timeRange: {
-          start: timeStart,
-          end: timeEnd
-        }
+        timeRange: { start: timeStart, end: timeEnd }
       })
     }
 

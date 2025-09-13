@@ -22,6 +22,7 @@ model User {
   ownedBuildings  Building[]       @relation("LandlordBuildings")
   consumptions    Consumption[]
   costs           Cost[]
+  invoices        Invoice[]
 
   @@map("users")
 }
@@ -146,6 +147,28 @@ model Settlement {
   building     Building @relation(fields: [buildingId], references: [id])
 
   @@map("settlements")
+}
+
+model Invoice {
+  id             String   @id @default(cuid())
+  invoiceNumber  String   @unique
+  userId         String
+  startDate      DateTime
+  endDate        DateTime
+  totalAmount    Float
+  currency       String   @default("EUR")
+  consumptionKwh Float
+  gridCost       Float
+  baseFee        Float
+  dataPoints     Int
+  pdfData        Bytes
+  filename       String
+  generatedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@map("invoices")
 }
 
 enum UserType {

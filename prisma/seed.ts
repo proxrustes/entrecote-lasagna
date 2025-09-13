@@ -234,7 +234,7 @@ async function main() {
   }
 
   // 9. Seed consumption and PV generation from hackathon dataset
-  const datasetPath = path.join(__dirname, 'data', 'hackathon_dataset_prepared_CORRECTED.csv')
+  const datasetPath = path.join(__dirname, 'data', 'hackathon_dataset_2years.csv')
   const datasetData = fs.readFileSync(datasetPath, 'utf-8')
   const datasetLines = datasetData.split('\n').filter(line => line.trim()).slice(1) // Remove header and empty lines
 
