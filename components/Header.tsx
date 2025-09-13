@@ -18,6 +18,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", roles: ["landlord", "tenant"] },
   { href: "/billing", label: "Billing", roles: ["landlord", "tenant"] },
   { href: "/devices", label: "Devices", roles: ["landlord"] },
+  { href: "/providers", label: "Providers", roles: ["landlord"] },
   { href: "/settings", label: "Settings", roles: ["landlord", "tenant"] },
 ];
 
@@ -38,7 +39,7 @@ export function Header() {
       elevation={0}
       sx={{ borderBottom: 1, borderColor: "divider" }}
     >
-      <Toolbar sx={{ gap: 2, minHeight: 72 }}>
+      <Toolbar sx={{ gap: 1, minHeight: 72 }}>
         <Grid3x3RoundedIcon color="primary" />
         <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>
           RoofShare

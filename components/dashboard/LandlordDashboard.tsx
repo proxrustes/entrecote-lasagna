@@ -1,147 +1,176 @@
+"use client";
+
+import * as React from "react";
 import {
-  Grid,
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Card,
   CardContent,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
   Typography,
-  Box,
+  LinearProgress,
 } from "@mui/material";
-import { LineChart, BarChart } from "@mui/x-charts";
-import { MOCK_HOUSES } from "../../lib/mockData";
-import { kpiForHouse } from "../../lib/kpiForHouse";
-import { useState } from "react";
+import Grid2 from "@mui/material/Grid";
+import { useSession } from "next-auth/react";
+import { ConsumptionVsGenerationChart } from "./ConsumptionVsGeneration";
+import { useEffect, useState } from "react";
+import { fetchConsumption } from "../../services/consumption";
+import { fetchGeneration } from "../../services/generation";
+
+const EUR_PER_KWH = 0.3;
 
 export function LandlordDashboard() {
-  const [selectedHouse, setSelectedHouse] = useState(MOCK_HOUSES[0].id);
-  const [selectedUnit, setSelectedUnit] = useState("all");
-  const house = MOCK_HOUSES.find((h) => h.id === selectedHouse)!;
-  const { sumConsumption, sumPV, selfSuff, savings } = kpiForHouse(house);
-  const timestamps = house.pvGenerationLog.map((d) => d.timestamp);
-  const unitsToShow =
-    selectedUnit === "all"
-      ? house.units
-      : house.units.filter((u) => u.id === selectedUnit);
+  const { data: session } = useSession();
+  const landlordId = (session as any)?.user?.id as string | undefined;
+
+  const [buildingIds, setBuildingIds] = useState<string[]>([]);
+  const [selectedHouse, setSelectedHouse] = useState<string>("");
+  const [tenantIds, setTenantIds] = useState<string[]>([]);
+  const [selectedTenant, setSelectedTenant] = useState<string>("all");
+
+  const [buildingLoading, setBuildingLoading] = useState(false);
+  const [tenantLoading, setTenantLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [sumCons, setSumCons] = useState(0);
+  const [sumGen, setSumGen] = useState(0);
+  const savings = Math.min(sumCons, sumGen) * EUR_PER_KWH;
+
+  useEffect(() => {
+    if (!landlordId) return;
+    let ignore = false;
+    (async () => {
+      try {
+        setBuildingLoading(true);
+        setError(null);
+        const [gRows, cRows] = await Promise.all([
+          fetchGeneration({ landlordId }),
+          fetchConsumption({ landlordId }),
+        ]);
+        if (ignore) return;
+        const ids = new Set<string>();
+        gRows.forEach((r) => ids.add(r.buildingId));
+        cRows.forEach((r) => ids.add(r.buildingId));
+        const arr = Array.from(ids);
+        setBuildingIds(arr);
+        setSelectedHouse((prev) => prev || arr[0] || "");
+      } catch (e: any) {
+        if (!ignore) setError(e?.message ?? "load failed");
+      } finally {
+        if (!ignore) setBuildingLoading(false);
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [landlordId]);
+
+  useEffect(() => {
+    if (!landlordId || !selectedHouse) return;
+    let ignore = false;
+    (async () => {
+      try {
+        setTenantLoading(true);
+        setError(null);
+        const rows = await fetchConsumption({
+          landlordId,
+          buildingId: selectedHouse,
+        });
+        if (ignore) return;
+        const ids = Array.from(
+          new Set(
+            rows
+              .map((r) => r.userId)
+              .filter((uid): uid is string => !!uid && uid !== landlordId)
+          )
+        ).sort();
+        setTenantIds(ids);
+      } catch (e: any) {
+        if (!ignore) setError(e?.message ?? "load failed");
+      } finally {
+        if (!ignore) setTenantLoading(false);
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [landlordId, selectedHouse]);
+
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (!landlordId)
+    return <Alert severity="warning">No landlord ID in session</Alert>;
+  if (!buildingIds.length && !buildingLoading)
+    return <Alert severity="info">No data</Alert>;
 
   return (
-    <Grid container spacing={3}>
-      <Grid size={12}>
-        <Alert severity="success" sx={{ borderRadius: 1 }}>
-          <strong>You saved €{savings.toFixed(2)}</strong> this period
-        </Alert>
-      </Grid>
-      <Grid size={6}>
-        <FormControl fullWidth>
-          <InputLabel>House</InputLabel>
-          <Select
-            value={selectedHouse}
-            onChange={(e) => {
-              setSelectedHouse(e.target.value);
-              setSelectedUnit("all");
-            }}
-          >
-            {MOCK_HOUSES.map((h) => (
-              <MenuItem key={h.id} value={h.id}>
-                {h.address}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Grid>
-      <Grid size={6}>
-        <FormControl fullWidth>
-          <InputLabel>Unit</InputLabel>
-          <Select
-            value={selectedUnit}
-            onChange={(e) => setSelectedUnit(e.target.value)}
-          >
-            <MenuItem value="all">All Units</MenuItem>
-            {house.units.map((u) => (
-              <MenuItem key={u.id} value={u.id}>
-                {u.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Grid>
-      <Grid size={12}>
-        <Alert severity="success" sx={{ borderRadius: 1 }} variant="filled">
-          <strong>You saved €{savings.toFixed(2)}</strong> this period across{" "}
-          {house.address}. Keep the sun working.
-        </Alert>
-      </Grid>
-      <Grid size={4}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6">Total Consumption</Typography>
-            <Typography variant="h4">
-              {sumConsumption.toFixed(2)} kWh
-            </Typography>
-          </CardContent>
-        </Card>
-      </Grid>
-      <Grid size={4}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6">PV Generation</Typography>
-            <Typography variant="h4">{sumPV.toFixed(2)} kWh</Typography>
-          </CardContent>
-        </Card>
-      </Grid>
-      <Grid size={4}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6">Self‑sufficiency</Typography>
-            <Typography variant="h4">{selfSuff.toFixed(0)}%</Typography>
-          </CardContent>
-        </Card>
-      </Grid>
+    <Card>
+      <CardContent>
+        <Grid2 container spacing={3}>
+          <Grid2 size={12}>
+            <Alert severity="success" sx={{ borderRadius: 1 }}>
+              <strong>You saved €{savings.toFixed(2)}</strong> this period
+            </Alert>
+          </Grid2>
 
-      <Grid size={6}>
-        <Card>
-          <CardContent>
+          <Grid2 size={6}>
+            <FormControl fullWidth disabled={buildingLoading}>
+              <InputLabel>House</InputLabel>
+              <Select
+                value={selectedHouse}
+                label="House"
+                onChange={(e) => {
+                  setSelectedHouse(e.target.value as string);
+                  setSelectedTenant("all");
+                }}
+              >
+                {buildingIds.map((id) => (
+                  <MenuItem key={id} value={id}>
+                    {id}
+                  </MenuItem>
+                ))}
+              </Select>
+              {buildingLoading && <LinearProgress sx={{ mt: 1 }} />}
+            </FormControl>
+          </Grid2>
+
+          <Grid2 size={6}>
+            <FormControl fullWidth disabled={!selectedHouse || tenantLoading}>
+              <InputLabel>Tenant</InputLabel>
+              <Select
+                value={selectedTenant}
+                label="Tenant"
+                onChange={(e) => setSelectedTenant(e.target.value as string)}
+              >
+                <MenuItem value="all">All</MenuItem>
+                {tenantIds.map((tid) => (
+                  <MenuItem key={tid} value={tid}>
+                    {tid}
+                  </MenuItem>
+                ))}
+              </Select>
+              {tenantLoading && <LinearProgress sx={{ mt: 1 }} />}
+            </FormControl>
+          </Grid2>
+
+          <Grid2 size={12}>
             <Typography variant="h6" gutterBottom>
-              Consumption vs PV
+              Consumption vs Generation
             </Typography>
-            <Box sx={{ width: "100%", height: 300 }}>
-              <LineChart
-                xAxis={[{ data: timestamps }]}
-                series={[
-                  {
-                    data: house.generalConsumptionLog.map((d) => d.kWh),
-                    label: "General",
-                  },
-                  {
-                    data: house.pvGenerationLog.map((d) => d.kWh),
-                    label: "PV",
-                  },
-                ]}
-              />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-      <Grid size={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Unit Breakdown
-            </Typography>
-            <Box sx={{ width: "100%", height: 300 }}>
-              <BarChart
-                xAxis={[{ data: timestamps }]}
-                series={unitsToShow.map((u) => ({
-                  data: u.consumptionLog.map((d) => d.kWh),
-                  label: u.name,
-                }))}
-              />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+            <ConsumptionVsGenerationChart
+              landlordId={landlordId}
+              houseId={selectedHouse}
+              tenantId={selectedTenant === "all" ? undefined : selectedTenant}
+              height={320}
+              onStats={({ sumConsumption, sumGeneration }) => {
+                setSumCons(sumConsumption);
+                setSumGen(sumGeneration);
+              }}
+            />
+          </Grid2>
+        </Grid2>
+      </CardContent>
+    </Card>
   );
 }

@@ -7,6 +7,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const landlordId = searchParams.get('landlordId')
+    const userId = searchParams.get('userId')
+    const buildingId = searchParams.get('buildingId')
 
     if (!landlordId) {
       return NextResponse.json(
@@ -15,7 +17,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get all buildings owned by the landlord
+    // Build query conditions
+    let whereClause: any = {}
+
+    // Security: Always filter by landlord's data first
     const buildings = await prisma.building.findMany({
       where: {
         landlordId: landlordId
@@ -33,19 +38,57 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([])
     }
 
-    // Extract all tenant IDs and include landlord ID
-    const userIds = buildings.flatMap(building =>
+    // Get all valid user IDs for this landlord
+    const validUserIds = buildings.flatMap(building =>
       building.tenants.map(bt => bt.tenant.id)
     )
-    userIds.push(landlordId) // Include landlord's general consumption
+    validUserIds.push(landlordId) // Include landlord's general consumption
 
-    // Get consumption data for all users in landlord's buildings
-    const consumptions = await prisma.consumption.findMany({
-      where: {
-        userId: {
-          in: userIds
+    // Apply userId filter if provided
+    if (userId) {
+      if (!validUserIds.includes(userId)) {
+        return NextResponse.json(
+          { error: 'User not found or not accessible by this landlord' },
+          { status: 403 }
+        )
+      }
+      whereClause.userId = userId
+    } else {
+      whereClause.userId = {
+        in: validUserIds
+      }
+    }
+
+    // Apply buildingId filter if provided
+    if (buildingId) {
+      const landlordBuilding = buildings.find(b => b.id === buildingId)
+      if (!landlordBuilding) {
+        return NextResponse.json(
+          { error: 'Building not found or not owned by this landlord' },
+          { status: 403 }
+        )
+      }
+
+      // Filter users by building
+      let buildingUserIds = landlordBuilding.tenants.map(bt => bt.tenant.id)
+      buildingUserIds.push(landlordId) // Include landlord for this building
+
+      if (userId) {
+        // If userId is also specified, ensure it's in this building
+        if (!buildingUserIds.includes(userId)) {
+          return NextResponse.json([])
         }
-      },
+      } else {
+        // Filter by building users
+        whereClause.userId = {
+          in: buildingUserIds
+        }
+      }
+    }
+
+    // Get consumption data
+    const consumptions = await prisma.consumption.findMany({
+      where: whereClause,
       include: {
         user: {
           include: {
@@ -66,21 +109,26 @@ export async function GET(request: NextRequest) {
     // Format response with building information
     const formattedData = consumptions.map(consumption => {
       // Find which building this user belongs to
-      let buildingId = ''
+      let responseBuildingId = ''
 
       if (consumption.user.type === 'LANDLORD') {
-        // For landlord, use first owned building (general consumption)
-        buildingId = consumption.user.ownedBuildings[0]?.id || ''
+        // For landlord, find which building this consumption belongs to
+        if (buildingId) {
+          responseBuildingId = buildingId
+        } else {
+          // Use first owned building as default
+          responseBuildingId = consumption.user.ownedBuildings[0]?.id || ''
+        }
       } else {
         // For tenant, find their building
         const tenantBuilding = consumption.user.tenantBuildings[0]
-        buildingId = tenantBuilding?.building.id || ''
+        responseBuildingId = tenantBuilding?.building.id || ''
       }
 
       return {
         timestamp: consumption.timestamp.toISOString(),
         userId: consumption.userId,
-        buildingId: buildingId,
+        buildingId: responseBuildingId,
         kWh: consumption.consumptionKwh
       }
     })

@@ -18,7 +18,7 @@ export default function RootLayout({
           <ThemeProvider theme={theme}>
             <CssBaseline />
             <Header />
-            <Container maxWidth="md" sx={{ py: 4 }}>
+            <Container maxWidth="xl" sx={{ py: 4 }}>
               {children}
             </Container>
           </ThemeProvider>
