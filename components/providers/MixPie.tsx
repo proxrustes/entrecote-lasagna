@@ -1,15 +1,40 @@
-import { PieChart } from "@mui/x-charts";
-import { EnergyMix } from "../../types/EnergyMix";
+"use client";
+import * as React from "react";
+import { PieChart } from "@mui/x-charts/PieChart";
+import { Provider } from "../../types/Provider";
 
-export function MixPie({ mix }: { mix: EnergyMix }) {
+export function MixPie({
+  p,
+  width = 320,
+  height = 220,
+}: {
+  p: Pick<
+    Provider,
+    | "nuclearEnergyPct"
+    | "coalEnergyPct"
+    | "gasEnergyPct"
+    | "miscFossilEnergyPct"
+    | "solarEnergyPct"
+    | "windEnergyPct"
+    | "miscRenewableEnergyPct"
+  >;
+  width?: number;
+  height?: number;
+}) {
   const data = [
-    { id: "Coal", label: "Coal", value: mix.coal },
-    { id: "Gas", label: "Gas", value: mix.gas },
-    { id: "Wind", label: "Wind", value: mix.wind },
-    { id: "Hydro", label: "Hydro", value: mix.hydro },
-    { id: "Solar", label: "Solar", value: mix.solar },
-    { id: "Nuclear", label: "Nuclear", value: mix.nuclear },
-    { id: "Other", label: "Other", value: mix.other },
+    { id: "Nuclear", label: "Nuclear", value: p.nuclearEnergyPct },
+    { id: "Coal", label: "Coal", value: p.coalEnergyPct },
+    { id: "Gas", label: "Gas", value: p.gasEnergyPct },
+    { id: "Wind", label: "Wind", value: p.windEnergyPct },
+    { id: "Solar", label: "Solar", value: p.solarEnergyPct },
+    { id: "Fossil*", label: "Misc Fossil", value: p.miscFossilEnergyPct },
+    { id: "Renew*", label: "Misc Renewable", value: p.miscRenewableEnergyPct },
   ];
-  return <PieChart series={[{ data, innerRadius: 40 }]} height={400} />;
+  return (
+    <PieChart
+      series={[{ data, innerRadius: 40 }]}
+      width={width}
+      height={height}
+    />
+  );
 }

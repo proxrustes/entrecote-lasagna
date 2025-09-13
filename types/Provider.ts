@@ -1,13 +1,14 @@
-import { EnergyMix } from "./EnergyMix";
-
 export type Provider = {
   id: string;
+  providerId: string;
   name: string;
-  contractId: string;
-  startDate: string;
-  endDate?: string;
-  tariffEurPerKwh: number;
-  energyMix: EnergyMix;
-  contact: { email?: string; phone?: string; website?: string };
-  active: boolean;
+  nuclearEnergyPct: number;
+  coalEnergyPct: number;
+  gasEnergyPct: number;
+  miscFossilEnergyPct: number;
+  solarEnergyPct: number;
+  windEnergyPct: number;
+  miscRenewableEnergyPct: number;
+  createdAt?: string;
+  updatedAt?: string;
 };

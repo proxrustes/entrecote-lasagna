@@ -1,236 +1,195 @@
-import { useState } from "react";
+"use client";
+import * as React from "react";
 import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   Grid,
   Stack,
   TextField,
-  Tooltip,
-  IconButton,
-  Box,
-  Typography,
-  FormControlLabel,
-  Switch,
-  DialogActions,
   Button,
+  Typography,
+  Divider,
 } from "@mui/material";
-import React from "react";
 import { MixPie } from "./MixPie";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { EnergyMix } from "../../types/EnergyMix";
 import { Provider } from "../../types/Provider";
 
-function mixTotal(m: EnergyMix) {
-  return m.coal + m.gas + m.wind + m.hydro + m.solar + m.nuclear + m.other;
-}
+type FormState = Omit<Provider, "id" | "createdAt" | "updatedAt">;
+
+const emptyForm = (): FormState => ({
+  providerId: "",
+  name: "",
+  nuclearEnergyPct: 0,
+  coalEnergyPct: 0,
+  gasEnergyPct: 0,
+  miscFossilEnergyPct: 0,
+  solarEnergyPct: 0,
+  windEnergyPct: 0,
+  miscRenewableEnergyPct: 0,
+});
 
 export function ProviderDialog({
   open,
   onClose,
-  onSave,
   initial,
+  onCreate,
+  onSaveLocal,
 }: {
   open: boolean;
   onClose: () => void;
-  onSave: (p: Provider) => void;
-  initial?: Provider;
+  initial?: Provider | null;
+  onCreate: (payload: FormState) => Promise<void>;
+  onSaveLocal?: (p: Provider) => void;
 }) {
-  const [form, setForm] = useState<Provider>(
-    initial ?? {
-      id: crypto.randomUUID(),
-      name: "",
-      contractId: "",
-      startDate: new Date().toISOString().slice(0, 10),
-      endDate: undefined,
-      tariffEurPerKwh: 0.28,
-      energyMix: {
-        coal: 0,
-        gas: 0,
-        wind: 0,
-        hydro: 0,
-        solar: 0,
-        nuclear: 0,
-        other: 0,
-      },
-      contact: {},
-      active: true,
-    }
+  const [form, setForm] = React.useState<FormState>(
+    initial
+      ? {
+          providerId: initial.providerId,
+          name: initial.name,
+          nuclearEnergyPct: initial.nuclearEnergyPct,
+          coalEnergyPct: initial.coalEnergyPct,
+          gasEnergyPct: initial.gasEnergyPct,
+          miscFossilEnergyPct: initial.miscFossilEnergyPct,
+          solarEnergyPct: initial.solarEnergyPct,
+          windEnergyPct: initial.windEnergyPct,
+          miscRenewableEnergyPct: initial.miscRenewableEnergyPct,
+        }
+      : emptyForm()
   );
 
   React.useEffect(() => {
-    if (initial) setForm(initial);
-  }, [initial]);
+    if (initial) {
+      setForm({
+        providerId: initial.providerId,
+        name: initial.name,
+        nuclearEnergyPct: initial.nuclearEnergyPct,
+        coalEnergyPct: initial.coalEnergyPct,
+        gasEnergyPct: initial.gasEnergyPct,
+        miscFossilEnergyPct: initial.miscFossilEnergyPct,
+        solarEnergyPct: initial.solarEnergyPct,
+        windEnergyPct: initial.windEnergyPct,
+        miscRenewableEnergyPct: initial.miscRenewableEnergyPct,
+      });
+    } else {
+      setForm(emptyForm());
+    }
+  }, [initial, open]);
 
-  const total = mixTotal(form.energyMix);
-  const invalid = total !== 100;
+  const total =
+    form.nuclearEnergyPct +
+    form.coalEnergyPct +
+    form.gasEnergyPct +
+    form.miscFossilEnergyPct +
+    form.solarEnergyPct +
+    form.windEnergyPct +
+    form.miscRenewableEnergyPct;
 
-  const updateMix = (key: keyof EnergyMix, value: number) => {
-    setForm((f) => ({
-      ...f,
-      energyMix: { ...f.energyMix, [key]: Math.max(0, Math.min(100, value)) },
-    }));
-  };
+  const invalid =
+    Math.abs(total - 100) > 0.01 || !form.providerId || !form.name;
 
-  const copyContract = async () => {
-    try {
-      await navigator.clipboard.writeText(form.contractId);
-    } catch {}
+  const num = (k: keyof FormState) => ({
+    value: form[k] as number,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm((f) => ({ ...f, [k]: Number(e.target.value) })),
+    type: "number" as const,
+    inputProps: { min: 0, max: 100, step: "1" },
+    fullWidth: true,
+  });
+
+  const submit = async () => {
+    if (initial) {
+      onSaveLocal?.({ id: initial.id, ...form });
+      onClose();
+      return;
+    }
+    await onCreate(form);
+    onClose();
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{initial ? "Edit Provider" : "Add Provider"}</DialogTitle>
       <DialogContent dividers>
-        <Grid container spacing={2}>
+        <Grid container spacing={4}>
           <Grid size={7}>
-            <Stack spacing={2}>
-              <TextField
-                label="Provider name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                fullWidth
-              />
-              <Stack direction="row" spacing={1} alignItems="center">
+            <Stack spacing={4}>
+              <Stack spacing={2}>
                 <TextField
-                  label="Contract ID"
-                  value={form.contractId}
+                  label="Contract number"
+                  size="small"
+                  value={form.providerId}
                   onChange={(e) =>
-                    setForm({ ...form, contractId: e.target.value })
+                    setForm((f) => ({ ...f, providerId: e.target.value }))
                   }
                   fullWidth
-                />
-                <Tooltip title="Copy contract">
-                  <IconButton onClick={copyContract}>
-                    <ContentCopyIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  type="date"
-                  label="Start date"
-                  value={form.startDate}
-                  onChange={(e) =>
-                    setForm({ ...form, startDate: e.target.value })
-                  }
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
+                  disabled={!!initial}
                 />
                 <TextField
-                  type="date"
-                  label="End date"
-                  value={form.endDate ?? ""}
+                  size="small"
+                  label="Name"
+                  value={form.name}
                   onChange={(e) =>
-                    setForm({ ...form, endDate: e.target.value })
-                  }
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Stack>
-              <TextField
-                type="number"
-                inputProps={{ step: "0.01" }}
-                label="Tariff (€/kWh)"
-                value={form.tariffEurPerKwh}
-                onChange={(e) =>
-                  setForm({ ...form, tariffEurPerKwh: Number(e.target.value) })
-                }
-                fullWidth
-              />
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  label="Email"
-                  value={form.contact.email ?? ""}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      contact: { ...form.contact, email: e.target.value },
-                    })
-                  }
-                  fullWidth
-                />
-                <TextField
-                  label="Phone"
-                  value={form.contact.phone ?? ""}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      contact: { ...form.contact, phone: e.target.value },
-                    })
+                    setForm((f) => ({ ...f, name: e.target.value }))
                   }
                   fullWidth
                 />
               </Stack>
-              <TextField
-                label="Website"
-                value={form.contact.website ?? ""}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    contact: { ...form.contact, website: e.target.value },
-                  })
-                }
-                fullWidth
-              />
-
-              <Box>
-                <Typography variant="subtitle1" gutterBottom>
-                  Energy mix (%)
-                </Typography>
-                <Grid container spacing={1}>
-                  {(Object.keys(form.energyMix) as (keyof EnergyMix)[]).map(
-                    (k) => (
-                      <Grid size={4} key={k}>
-                        <TextField
-                          type="number"
-                          label={k.charAt(0).toUpperCase() + k.slice(1)}
-                          value={form.energyMix[k]}
-                          onChange={(e) => updateMix(k, Number(e.target.value))}
-                          InputProps={{ inputProps: { min: 0, max: 100 } }}
-                          fullWidth
-                        />
-                      </Grid>
-                    )
-                  )}
+              <Divider />
+              <Typography variant="subtitle1">
+                Energy sources (%) — must sum to 100
+              </Typography>
+              <Grid container spacing={1}>
+                <Grid size={4}>
+                  <TextField label="Nuclear" {...num("nuclearEnergyPct")} />
                 </Grid>
-                <Typography mt={1} color={invalid ? "error" : "text.secondary"}>
-                  Total: {total}% {invalid ? "(must equal 100%)" : ""}
-                </Typography>
-              </Box>
-
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={form.active}
-                    onChange={(e) =>
-                      setForm({ ...form, active: e.target.checked })
-                    }
+                <Grid size={4}>
+                  <TextField label="Coal" {...num("coalEnergyPct")} />
+                </Grid>
+                <Grid size={4}>
+                  <TextField label="Gas" {...num("gasEnergyPct")} />
+                </Grid>
+                <Grid size={4}>
+                  <TextField label="Wind" {...num("windEnergyPct")} />
+                </Grid>
+                <Grid size={4}>
+                  <TextField label="Solar" {...num("solarEnergyPct")} />
+                </Grid>
+                <Grid size={4}>
+                  <TextField
+                    label="Misc Fossil"
+                    {...num("miscFossilEnergyPct")}
                   />
-                }
-                label="Active"
-              />
+                </Grid>
+                <Grid size={4}>
+                  <TextField
+                    label="Misc Renewable"
+                    {...num("miscRenewableEnergyPct")}
+                  />
+                </Grid>
+              </Grid>
+              <Typography color={invalid ? "error" : "text.secondary"}>
+                Total: {total.toFixed(0)}%
+              </Typography>
             </Stack>
           </Grid>
+
           <Grid size={5}>
             <Typography variant="subtitle1" gutterBottom>
-              Mix preview
+              Source preview
             </Typography>
-            <MixPie mix={form.energyMix} />
-            <Typography color="text.secondary">
+            <MixPie p={form} height={220} />
+            <Typography variant="caption" color="text.secondary">
               Live preview updates as you edit percentages.
             </Typography>
           </Grid>
         </Grid>
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={() => onSave(form)}
-          variant="contained"
-          disabled={invalid}
-        >
-          {initial ? "Save changes" : "Add provider"}
+        <Button onClick={submit} disabled={invalid} variant="contained">
+          {initial ? "Save (local)" : "Create"}
         </Button>
       </DialogActions>
     </Dialog>
