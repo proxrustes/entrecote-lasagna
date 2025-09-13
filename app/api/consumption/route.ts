@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build query conditions
-    let whereClause: any = {}
+    const whereClause: any = {}
 
     // Security: Always filter by landlord's data first
     const buildings = await prisma.building.findMany({
