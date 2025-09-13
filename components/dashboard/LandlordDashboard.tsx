@@ -16,6 +16,7 @@ import Grid2 from "@mui/material/Grid";
 import { useSession } from "next-auth/react";
 import { ConsumptionVsGenerationChart } from "./ConsumptionVsGeneration";
 import { useBuildings } from "../../services/buildings/useBuildings"; // ← поправь путь к твоему хуку
+import { SavingsBanner } from "./ProfitBanner";
 
 const EUR_PER_KWH = 0.3 as const;
 
@@ -73,16 +74,12 @@ export function LandlordDashboard() {
   const tenantOptions =
     current?.tenants?.map((t) => ({ id: t.id, label: t.name || t.id })) ?? [];
 
-  const { startDate, endDate } = getRange(rangeKey);
-
   return (
     <Card>
       <CardContent>
         <Grid2 container spacing={3}>
           <Grid2 size={12}>
-            <Alert severity="success" sx={{ borderRadius: 1 }}>
-              <strong>You saved €{savings.toFixed(2)}</strong> this period
-            </Alert>
+            <SavingsBanner landlordId={landlordId} />
           </Grid2>
 
           {/* House */}
@@ -143,7 +140,6 @@ export function LandlordDashboard() {
             </FormControl>
           </Grid2>
 
-          {/* Chart */}
           <Grid2 size={12}>
             <Typography variant="h6" gutterBottom>
               Consumption vs Generation
