@@ -9,11 +9,51 @@ import { ProvidersTable } from "../../components/providers/ProvidersTable";
 import { Provider } from "../../types/Provider";
 import { EnergyMix } from "../../types/EnergyMix";
 
+export const INITIAL_PROVIDERS: Provider[] = [
+  {
+    id: "p1",
+    name: "Vattenfall",
+    contractId: "VF-2025-0001",
+    startDate: "2025-01-01",
+    tariffEurPerKwh: 0.29,
+    energyMix: {
+      coal: 10,
+      gas: 15,
+      wind: 35,
+      hydro: 10,
+      solar: 20,
+      nuclear: 5,
+      other: 5,
+    },
+    contact: { email: "support@vattenfall.com", phone: "+49 30 123456" },
+    active: true,
+  },
+  {
+    id: "p2",
+    name: "Octopus Energy",
+    contractId: "OCTO-2025-117",
+    startDate: "2025-03-01",
+    tariffEurPerKwh: 0.27,
+    energyMix: {
+      coal: 0,
+      gas: 10,
+      wind: 40,
+      hydro: 20,
+      solar: 25,
+      nuclear: 0,
+      other: 5,
+    },
+    contact: { email: "help@octopus.energy" },
+    active: true,
+  },
+];
+
 export default function ProvidersPage() {
   const { data: session } = useSession();
   const role = (session as any)?.role ?? "tenant";
 
-  const [providers, setProviders] = React.useState<Provider[]>([]);
+  const [providers, setProviders] =
+    React.useState<Provider[]>(INITIAL_PROVIDERS);
   const [open, setOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Provider | undefined>(undefined);
 

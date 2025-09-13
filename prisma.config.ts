@@ -1,3 +1,3 @@
 export default {
-  seed: 'tsx prisma/seed.ts'
-}
+  seed: "tsx prisma/seed.ts",
+};

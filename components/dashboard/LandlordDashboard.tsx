@@ -4,184 +4,137 @@
 import * as React from "react";
 import {
   Alert,
-  Box,
   Card,
   CardContent,
-  CircularProgress,
   FormControl,
   InputLabel,
   MenuItem,
   Select,
   Typography,
+  LinearProgress,
 } from "@mui/material";
-import Grid2 from "@mui/material/Grid"; // поддержка prop `size`
-import { LineChart } from "@mui/x-charts";
+import Grid2 from "@mui/material/Grid"; // корректный Grid v2 с prop `size`
 import { useSession } from "next-auth/react";
-import { useEffect } from "react";
+import { ConsumptionVsGenerationChart } from "./ConsumptionVsGeneration";
 
-type ConsumptionPoint = {
+// === лёгкие фетчеры (только для списков, без общего "loading" страницы) ===
+type ConsumptionRow = {
   timestamp: string;
   userId: string;
   buildingId: string;
   kWh: number;
 };
-
-type GenerationPoint = {
+type GenerationRow = {
   timestamp: string;
   deviceId: string;
   buildingId: string;
   kWh: number;
 };
 
-const LOCAL_EUR_PER_KWH = 0.3;
+async function fetchGeneration(params: { landlordId: string }) {
+  const qs = new URLSearchParams({ landlordId: params.landlordId });
+  const res = await fetch(`/api/generation?${qs.toString()}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`generation ${res.status}`);
+  return (await res.json()) as GenerationRow[];
+}
 
+async function fetchConsumption(params: {
+  landlordId: string;
+  buildingId?: string;
+}) {
+  const qs = new URLSearchParams({ landlordId: params.landlordId });
+  if (params.buildingId) qs.set("buildingId", params.buildingId);
+  const res = await fetch(`/api/consumption?${qs.toString()}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`consumption ${res.status}`);
+  return (await res.json()) as ConsumptionRow[];
+}
+
+const EUR_PER_KWH = 0.3;
 
 export function LandlordDashboard() {
   const { data: session } = useSession();
-  const landlordId = (session as any)?.user?.id;
+  const landlordId = (session as any)?.user?.id as string | undefined;
 
+  const [buildingIds, setBuildingIds] = React.useState<string[]>([]);
   const [selectedHouse, setSelectedHouse] = React.useState<string>("");
-  const [selectedUnit, setSelectedUnit] = React.useState<string>("all");
+  const [tenantIds, setTenantIds] = React.useState<string[]>([]);
+  const [selectedTenant, setSelectedTenant] = React.useState<string>("all");
 
-  const [loading, setLoading] = React.useState(true);
-  const [err, setErr] = React.useState<string | null>(null);
-  const [cons, setCons] = React.useState<ConsumptionPoint[]>([]);
-  const [gen, setGen] = React.useState<GenerationPoint[]>([]);
+  const [buildingLoading, setBuildingLoading] = React.useState(false);
+  const [tenantLoading, setTenantLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  useEffect(() => {
+  // KPI из дочернего графика (не блокируем страницу при смене фильтров)
+  const [sumCons, setSumCons] = React.useState(0);
+  const [sumGen, setSumGen] = React.useState(0);
+  const selfSuff = sumCons > 0 ? (sumGen / sumCons) * 100 : 0;
+  const savings = Math.min(sumCons, sumGen) * EUR_PER_KWH;
+
+  // 1) initial: список домов (не перекрашиваем всю страницу)
+  React.useEffect(() => {
+    if (!landlordId) return;
     let ignore = false;
-    async function load() {
+    (async () => {
       try {
-        setLoading(true);
-        setErr(null);
-        if (!landlordId) {
-          setErr("Missing landlordId");
-          return;
-        }
-        const [cRes, gRes] = await Promise.all([
-          fetch(
-            `/api/consumption?landlordId=${encodeURIComponent(landlordId)}`
-          ),
-          fetch(`/api/generation?landlordId=${encodeURIComponent(landlordId)}`),
+        setBuildingLoading(true);
+        setError(null);
+        const [gRows, cRows] = await Promise.all([
+          fetchGeneration({ landlordId }),
+          fetchConsumption({ landlordId }),
         ]);
-        if (!cRes.ok) throw new Error(`consumption: ${cRes.status}`);
-        if (!gRes.ok) throw new Error(`generation: ${gRes.status}`);
-        const cData: ConsumptionPoint[] = await cRes.json();
-        const gData: GenerationPoint[] = await gRes.json();
-        if (!ignore) {
-          setCons(cData);
-          setGen(gData);
-          const firstBuilding =
-            cData[0]?.buildingId || gData[0]?.buildingId || "";
-          setSelectedHouse((prev) => prev || firstBuilding);
-        }
+        if (ignore) return;
+        const ids = new Set<string>();
+        gRows.forEach((r) => ids.add(r.buildingId));
+        cRows.forEach((r) => ids.add(r.buildingId));
+        const arr = Array.from(ids);
+        setBuildingIds(arr);
+        setSelectedHouse((prev) => prev || arr[0] || "");
       } catch (e: any) {
-        if (!ignore) setErr(e?.message || "Failed to load");
+        if (!ignore) setError(e?.message ?? "load failed");
       } finally {
-        if (!ignore) setLoading(false);
+        if (!ignore) setBuildingLoading(false);
       }
-    }
-    load();
+    })();
     return () => {
       ignore = true;
     };
   }, [landlordId]);
 
-  // Дома из данных
-  const buildingIds = React.useMemo(() => {
-    const ids = new Set<string>();
-    cons.forEach((p) => ids.add(p.buildingId));
-    gen.forEach((p) => ids.add(p.buildingId));
-    return Array.from(ids);
-  }, [cons, gen]);
+  // 2) при смене дома подтягиваем список tenantId (локальная индикация в селекте)
+  React.useEffect(() => {
+    if (!landlordId || !selectedHouse) return;
+    let ignore = false;
+    (async () => {
+      try {
+        setTenantLoading(true);
+        setError(null);
+        const rows = await fetchConsumption({
+          landlordId,
+          buildingId: selectedHouse,
+        });
+        if (ignore) return;
+        const ids = Array.from(new Set(rows.map((r) => r.userId)));
+        setTenantIds(ids);
+      } catch (e: any) {
+        if (!ignore) setError(e?.message ?? "load failed");
+      } finally {
+        if (!ignore) setTenantLoading(false);
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [landlordId, selectedHouse]);
 
-  // Юниты (userId) для выбранного дома
-  const unitOptions = React.useMemo(() => {
-    const ids = new Set<string>();
-    cons
-      .filter((p) => p.buildingId === selectedHouse)
-      .forEach((p) => ids.add(p.userId));
-    return ["all", ...Array.from(ids)];
-  }, [cons, selectedHouse]);
-
-  // Объединённые метки времени по дому
-  const timestamps = React.useMemo(() => {
-    const s = new Set<string>();
-    cons
-      .filter((p) => p.buildingId === selectedHouse)
-      .forEach((p) => s.add(p.timestamp));
-    gen
-      .filter((p) => p.buildingId === selectedHouse)
-      .forEach((p) => s.add(p.timestamp));
-    return Array.from(s).sort();
-  }, [cons, gen, selectedHouse]);
-
-  // Две серии: Consumption и Generation
-  const { seriesConsumption, seriesGeneration, sumConsumption, sumGeneration } =
-    React.useMemo(() => {
-      const cMap = new Map<string, number>(); // ts -> kWh (по выбранному юниту или сумме)
-      const gMap = new Map<string, number>(); // ts -> kWh (сумма по устройствам)
-      timestamps.forEach((ts) => {
-        cMap.set(ts, 0);
-        gMap.set(ts, 0);
-      });
-
-      // Consumption: либо сумма по всем, либо по выбранному userId
-      const consFiltered =
-        selectedUnit === "all"
-          ? cons.filter((p) => p.buildingId === selectedHouse)
-          : cons.filter(
-              (p) => p.buildingId === selectedHouse && p.userId === selectedUnit
-            );
-
-      consFiltered.forEach((p) =>
-        cMap.set(p.timestamp, (cMap.get(p.timestamp) || 0) + p.kWh)
-      );
-
-      // Generation: всегда суммарно по дому
-      gen
-        .filter((p) => p.buildingId === selectedHouse)
-        .forEach((p) =>
-          gMap.set(p.timestamp, (gMap.get(p.timestamp) || 0) + p.kWh)
-        );
-
-      const cSeries = timestamps.map((ts) => +(cMap.get(ts) || 0));
-      const gSeries = timestamps.map((ts) => +(gMap.get(ts) || 0));
-      const cSum = cSeries.reduce((a, v) => a + v, 0);
-      const gSum = gSeries.reduce((a, v) => a + v, 0);
-
-      return {
-        seriesConsumption: cSeries,
-        seriesGeneration: gSeries,
-        sumConsumption: cSum,
-        sumGeneration: gSum,
-      };
-    }, [timestamps, cons, gen, selectedHouse, selectedUnit]);
-
-  const selfSuff =
-    sumConsumption > 0 ? (sumGeneration / sumConsumption) * 100 : 0;
-  const localUse = Math.min(sumGeneration, sumConsumption);
-  const savings = localUse * LOCAL_EUR_PER_KWH;
-
-  if (loading) {
-    return <CircularProgress />;
-  }
-
-  if (err) {
-    return (
-      <Alert severity="error" sx={{ borderRadius: 1 }}>
-        {err}
-      </Alert>
-    );
-  }
-
-  if (!selectedHouse) {
-    return (
-      <Alert severity="info" sx={{ borderRadius: 1 }}>
-        No data for this landlord yet.
-      </Alert>
-    );
-  }
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (!landlordId)
+    return <Alert severity="warning">No landlord ID in session</Alert>;
+  if (!buildingIds.length && !buildingLoading)
+    return <Alert severity="info">No data</Alert>;
 
   return (
     <Grid2 container spacing={3}>
@@ -191,16 +144,16 @@ export function LandlordDashboard() {
         </Alert>
       </Grid2>
 
-      {/* Фильтры */}
+      {/* Фильтры — не дёргаем разметку, только дизейблим и показываем тонкую полоску */}
       <Grid2 size={6}>
-        <FormControl fullWidth>
+        <FormControl fullWidth disabled={buildingLoading}>
           <InputLabel>House</InputLabel>
           <Select
             value={selectedHouse}
             label="House"
             onChange={(e) => {
               setSelectedHouse(e.target.value as string);
-              setSelectedUnit("all");
+              setSelectedTenant("all");
             }}
           >
             {buildingIds.map((id) => (
@@ -209,34 +162,35 @@ export function LandlordDashboard() {
               </MenuItem>
             ))}
           </Select>
+          {buildingLoading && <LinearProgress sx={{ mt: 1 }} />}
         </FormControl>
       </Grid2>
 
       <Grid2 size={6}>
-        <FormControl fullWidth>
-          <InputLabel>Unit (tenant)</InputLabel>
+        <FormControl fullWidth disabled={!selectedHouse || tenantLoading}>
+          <InputLabel>Tenant</InputLabel>
           <Select
-            value={selectedUnit}
-            label="Unit (tenant)"
-            onChange={(e) => setSelectedUnit(e.target.value as string)}
+            value={selectedTenant}
+            label="Tenant"
+            onChange={(e) => setSelectedTenant(e.target.value as string)}
           >
-            {unitOptions.map((v) => (
-              <MenuItem key={v} value={v}>
-                {v === "all" ? "All" : v}
+            <MenuItem value="all">All</MenuItem>
+            {tenantIds.map((tid) => (
+              <MenuItem key={tid} value={tid}>
+                {tid}
               </MenuItem>
             ))}
           </Select>
+          {tenantLoading && <LinearProgress sx={{ mt: 1 }} />}
         </FormControl>
       </Grid2>
 
-      {/* KPIs */}
+      {/* KPI — оставляем предыдущие значения до прихода новых onStats, чтобы не мигало */}
       <Grid2 size={4}>
         <Card>
           <CardContent>
             <Typography variant="h6">Total Consumption</Typography>
-            <Typography variant="h4">
-              {sumConsumption.toFixed(2)} kWh
-            </Typography>
+            <Typography variant="h4">{sumCons.toFixed(2)} kWh</Typography>
           </CardContent>
         </Card>
       </Grid2>
@@ -244,7 +198,7 @@ export function LandlordDashboard() {
         <Card>
           <CardContent>
             <Typography variant="h6">PV Generation</Typography>
-            <Typography variant="h4">{sumGeneration.toFixed(2)} kWh</Typography>
+            <Typography variant="h4">{sumGen.toFixed(2)} kWh</Typography>
           </CardContent>
         </Card>
       </Grid2>
@@ -257,22 +211,24 @@ export function LandlordDashboard() {
         </Card>
       </Grid2>
 
-      {/* ЕДИНСТВЕННЫЙ график: Consumption vs Generation */}
+      {/* График — отдельный компонент сам фетчит и показывает спиннер ВНУТРИ себя, высота фиксирована */}
       <Grid2 size={12}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               Consumption vs Generation
             </Typography>
-            <Box sx={{ width: "100%", height: 300 }}>
-              <LineChart
-                xAxis={[{ data: timestamps }]}
-                series={[
-                  { id: "cons", label: "Consumption", data: seriesConsumption },
-                  { id: "gen", label: "Generation", data: seriesGeneration },
-                ]}
-              />
-            </Box>
+            <ConsumptionVsGenerationChart
+              landlordId={landlordId}
+              houseId={selectedHouse}
+              tenantId={selectedTenant === "all" ? undefined : selectedTenant}
+              height={320}
+              onStats={({ sumConsumption, sumGeneration }) => {
+                // плавное обновление без дёрганья
+                setSumCons(sumConsumption);
+                setSumGen(sumGeneration);
+              }}
+            />
           </CardContent>
         </Card>
       </Grid2>
