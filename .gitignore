@@ -43,3 +43,5 @@ next-env.d.ts
 # local files and docs
 /local/
 CLAUDE.md
+
+/app/generated/prisma
