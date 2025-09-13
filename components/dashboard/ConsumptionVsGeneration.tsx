@@ -1,17 +1,18 @@
-// components/charts/ConsumptionVsGeneration.tsx
 "use client";
 
 import * as React from "react";
 import { Box, CircularProgress, Alert } from "@mui/material";
 import { LineChart } from "@mui/x-charts";
+import { fetchConsumption } from "../../services/consumption";
+import { fetchGeneration } from "../../services/generation";
 
-type ConsumptionRow = {
+export type ConsumptionRow = {
   timestamp: string;
   userId: string;
   buildingId: string;
   kWh: number;
 };
-type GenerationRow = {
+export type GenerationRow = {
   timestamp: string;
   deviceId: string;
   buildingId: string;
@@ -50,34 +51,6 @@ function buildTimeline(
   const cons = ts.map((t) => consMap.get(t) ?? 0);
   const gen = ts.map((t) => genMap.get(t) ?? 0);
   return { ts, cons, gen };
-}
-
-async function fetchGeneration(params: {
-  landlordId: string;
-  buildingId?: string;
-}) {
-  const qs = new URLSearchParams({ landlordId: params.landlordId });
-  if (params.buildingId) qs.set("buildingId", params.buildingId);
-  const res = await fetch(`/api/generation?${qs.toString()}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`generation ${res.status}`);
-  return (await res.json()) as GenerationRow[];
-}
-
-async function fetchConsumption(params: {
-  landlordId: string;
-  buildingId?: string;
-  userId?: string;
-}) {
-  const qs = new URLSearchParams({ landlordId: params.landlordId });
-  if (params.buildingId) qs.set("buildingId", params.buildingId);
-  if (params.userId) qs.set("userId", params.userId);
-  const res = await fetch(`/api/consumption?${qs.toString()}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`consumption ${res.status}`);
-  return (await res.json()) as ConsumptionRow[];
 }
 
 export function ConsumptionVsGenerationChart({

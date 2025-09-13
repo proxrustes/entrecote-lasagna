@@ -1,4 +1,3 @@
-// app/api/devices/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@/app/generated/prisma";
 
@@ -8,7 +7,6 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const landlordId = searchParams.get("landlordId");
-    const buildingId = searchParams.get("buildingId");
     const status = searchParams.get("status");
 
     if (!landlordId) {
@@ -19,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     const buildings = await prisma.building.findMany({
-      where: { landlordId, ...(buildingId ? { id: buildingId } : {}) },
+      where: { landlordId },
       select: { id: true, address: true },
     });
     if (!buildings.length) return NextResponse.json([]);

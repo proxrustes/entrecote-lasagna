@@ -1,4 +1,3 @@
-// app/billing/page.tsx
 "use client";
 
 import * as React from "react";
@@ -17,7 +16,6 @@ import {
 import { MOCK_HOUSES } from "../../lib/mockData";
 
 export default function LandlordBilling() {
-  // добавляем houseId / unitId, чтобы линкнуть форму инвойса
   const rows = MOCK_HOUSES.flatMap((h) =>
     h.units.flatMap((u) =>
       u.bills.map((b) => ({
