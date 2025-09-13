@@ -1,22 +1,29 @@
+// app/billing/page.tsx
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
 import {
   Card,
   CardContent,
-  Stack,
   Typography,
   Table,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
-  Chip,
+  Button,
 } from "@mui/material";
-import { MOCK_HOUSES as HOUSES } from "../../lib/mockData";
+import { MOCK_HOUSES } from "../../app/dashboard/page";
 
-// --- landlord view (overview across houses/units)
-export function LandlordBilling() {
-  const rows = HOUSES.flatMap((h) =>
+
+export default function LandlordBilling() {
+  // добавляем houseId / unitId, чтобы линкнуть форму инвойса
+  const rows = MOCK_HOUSES.flatMap((h) =>
     h.units.flatMap((u) =>
       u.bills.map((b) => ({
+        houseId: h.id,
+        unitId: u.id,
         house: h.address,
         unit: u.name,
         tenant: u.tenant.name,
@@ -32,17 +39,12 @@ export function LandlordBilling() {
   return (
     <Card>
       <CardContent>
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={1}
-        >
-          <Typography variant="h6">Billing Overview</Typography>
-          <Typography color="text.secondary">
-            Total across houses: € {total}
-          </Typography>
-        </Stack>
+        <Typography variant="h6" gutterBottom>
+          Billing Overview
+        </Typography>
+        <Typography variant="body2" color="text.secondary" gutterBottom>
+          Total across houses: € {total}
+        </Typography>
 
         <Table>
           <TableHead>
@@ -53,8 +55,10 @@ export function LandlordBilling() {
               <TableCell>Month</TableCell>
               <TableCell align="right">Amount</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell align="right">Действия</TableCell>
             </TableRow>
           </TableHead>
+
           <TableBody>
             {rows.map((r, idx) => (
               <TableRow key={`${r.house}-${r.unit}-${r.month}-${idx}`}>
@@ -63,13 +67,18 @@ export function LandlordBilling() {
                 <TableCell>{r.tenant}</TableCell>
                 <TableCell>{r.month}</TableCell>
                 <TableCell align="right">€ {r.amount}</TableCell>
-                <TableCell>
-                  <Chip
+                <TableCell>{r.status}</TableCell>
+                <TableCell align="right">
+                  <Button
+                    component={Link}
+                    href={`/billing/new?houseId=${encodeURIComponent(
+                      r.houseId
+                    )}&unitId=${encodeURIComponent(r.unitId)}`}
                     size="small"
-                    label={r.status}
-                    color={r.status === "Paid" ? "success" : "warning"}
-                    variant={r.status === "Paid" ? "filled" : "outlined"}
-                  />
+                    variant="contained"
+                  >
+                    Сгенерировать инвойс
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

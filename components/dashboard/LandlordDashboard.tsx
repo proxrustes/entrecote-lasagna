@@ -1,79 +1,236 @@
+// components/dashboard/LandlordDashboard.tsx
+"use client";
+
+import * as React from "react";
 import {
-  Grid,
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
+  Box,
   Card,
   CardContent,
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
   Typography,
-  Box,
 } from "@mui/material";
-import { LineChart, BarChart } from "@mui/x-charts";
-import { MOCK_HOUSES } from "../../lib/mockData";
-import { kpiForHouse } from "../../lib/kpiForHouse";
-import { useState } from "react";
+import Grid2 from "@mui/material/Grid"; // поддержка prop `size`
+import { LineChart } from "@mui/x-charts";
+import { useSession } from "next-auth/react";
+import { useEffect } from "react";
+
+type ConsumptionPoint = {
+  timestamp: string;
+  userId: string;
+  buildingId: string;
+  kWh: number;
+};
+
+type GenerationPoint = {
+  timestamp: string;
+  deviceId: string;
+  buildingId: string;
+  kWh: number;
+};
+
+const LOCAL_EUR_PER_KWH = 0.3;
+
 
 export function LandlordDashboard() {
-  const [selectedHouse, setSelectedHouse] = useState(MOCK_HOUSES[0].id);
-  const [selectedUnit, setSelectedUnit] = useState("all");
-  const house = MOCK_HOUSES.find((h) => h.id === selectedHouse)!;
-  const { sumConsumption, sumPV, selfSuff, savings } = kpiForHouse(house);
-  const timestamps = house.pvGenerationLog.map((d) => d.timestamp);
-  const unitsToShow =
-    selectedUnit === "all"
-      ? house.units
-      : house.units.filter((u) => u.id === selectedUnit);
+  const { data: session } = useSession();
+  const landlordId = (session as any)?.user?.id;
+
+  const [selectedHouse, setSelectedHouse] = React.useState<string>("");
+  const [selectedUnit, setSelectedUnit] = React.useState<string>("all");
+
+  const [loading, setLoading] = React.useState(true);
+  const [err, setErr] = React.useState<string | null>(null);
+  const [cons, setCons] = React.useState<ConsumptionPoint[]>([]);
+  const [gen, setGen] = React.useState<GenerationPoint[]>([]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      try {
+        setLoading(true);
+        setErr(null);
+        if (!landlordId) {
+          setErr("Missing landlordId");
+          return;
+        }
+        const [cRes, gRes] = await Promise.all([
+          fetch(
+            `/api/consumption?landlordId=${encodeURIComponent(landlordId)}`
+          ),
+          fetch(`/api/generation?landlordId=${encodeURIComponent(landlordId)}`),
+        ]);
+        if (!cRes.ok) throw new Error(`consumption: ${cRes.status}`);
+        if (!gRes.ok) throw new Error(`generation: ${gRes.status}`);
+        const cData: ConsumptionPoint[] = await cRes.json();
+        const gData: GenerationPoint[] = await gRes.json();
+        if (!ignore) {
+          setCons(cData);
+          setGen(gData);
+          const firstBuilding =
+            cData[0]?.buildingId || gData[0]?.buildingId || "";
+          setSelectedHouse((prev) => prev || firstBuilding);
+        }
+      } catch (e: any) {
+        if (!ignore) setErr(e?.message || "Failed to load");
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [landlordId]);
+
+  // Дома из данных
+  const buildingIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    cons.forEach((p) => ids.add(p.buildingId));
+    gen.forEach((p) => ids.add(p.buildingId));
+    return Array.from(ids);
+  }, [cons, gen]);
+
+  // Юниты (userId) для выбранного дома
+  const unitOptions = React.useMemo(() => {
+    const ids = new Set<string>();
+    cons
+      .filter((p) => p.buildingId === selectedHouse)
+      .forEach((p) => ids.add(p.userId));
+    return ["all", ...Array.from(ids)];
+  }, [cons, selectedHouse]);
+
+  // Объединённые метки времени по дому
+  const timestamps = React.useMemo(() => {
+    const s = new Set<string>();
+    cons
+      .filter((p) => p.buildingId === selectedHouse)
+      .forEach((p) => s.add(p.timestamp));
+    gen
+      .filter((p) => p.buildingId === selectedHouse)
+      .forEach((p) => s.add(p.timestamp));
+    return Array.from(s).sort();
+  }, [cons, gen, selectedHouse]);
+
+  // Две серии: Consumption и Generation
+  const { seriesConsumption, seriesGeneration, sumConsumption, sumGeneration } =
+    React.useMemo(() => {
+      const cMap = new Map<string, number>(); // ts -> kWh (по выбранному юниту или сумме)
+      const gMap = new Map<string, number>(); // ts -> kWh (сумма по устройствам)
+      timestamps.forEach((ts) => {
+        cMap.set(ts, 0);
+        gMap.set(ts, 0);
+      });
+
+      // Consumption: либо сумма по всем, либо по выбранному userId
+      const consFiltered =
+        selectedUnit === "all"
+          ? cons.filter((p) => p.buildingId === selectedHouse)
+          : cons.filter(
+              (p) => p.buildingId === selectedHouse && p.userId === selectedUnit
+            );
+
+      consFiltered.forEach((p) =>
+        cMap.set(p.timestamp, (cMap.get(p.timestamp) || 0) + p.kWh)
+      );
+
+      // Generation: всегда суммарно по дому
+      gen
+        .filter((p) => p.buildingId === selectedHouse)
+        .forEach((p) =>
+          gMap.set(p.timestamp, (gMap.get(p.timestamp) || 0) + p.kWh)
+        );
+
+      const cSeries = timestamps.map((ts) => +(cMap.get(ts) || 0));
+      const gSeries = timestamps.map((ts) => +(gMap.get(ts) || 0));
+      const cSum = cSeries.reduce((a, v) => a + v, 0);
+      const gSum = gSeries.reduce((a, v) => a + v, 0);
+
+      return {
+        seriesConsumption: cSeries,
+        seriesGeneration: gSeries,
+        sumConsumption: cSum,
+        sumGeneration: gSum,
+      };
+    }, [timestamps, cons, gen, selectedHouse, selectedUnit]);
+
+  const selfSuff =
+    sumConsumption > 0 ? (sumGeneration / sumConsumption) * 100 : 0;
+  const localUse = Math.min(sumGeneration, sumConsumption);
+  const savings = localUse * LOCAL_EUR_PER_KWH;
+
+  if (loading) {
+    return <CircularProgress />;
+  }
+
+  if (err) {
+    return (
+      <Alert severity="error" sx={{ borderRadius: 1 }}>
+        {err}
+      </Alert>
+    );
+  }
+
+  if (!selectedHouse) {
+    return (
+      <Alert severity="info" sx={{ borderRadius: 1 }}>
+        No data for this landlord yet.
+      </Alert>
+    );
+  }
 
   return (
-    <Grid container spacing={3}>
-      <Grid size={12}>
+    <Grid2 container spacing={3}>
+      <Grid2 size={12}>
         <Alert severity="success" sx={{ borderRadius: 1 }}>
           <strong>You saved €{savings.toFixed(2)}</strong> this period
         </Alert>
-      </Grid>
-      <Grid size={6}>
+      </Grid2>
+
+      {/* Фильтры */}
+      <Grid2 size={6}>
         <FormControl fullWidth>
           <InputLabel>House</InputLabel>
           <Select
             value={selectedHouse}
+            label="House"
             onChange={(e) => {
-              setSelectedHouse(e.target.value);
+              setSelectedHouse(e.target.value as string);
               setSelectedUnit("all");
             }}
           >
-            {MOCK_HOUSES.map((h) => (
-              <MenuItem key={h.id} value={h.id}>
-                {h.address}
+            {buildingIds.map((id) => (
+              <MenuItem key={id} value={id}>
+                {id}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
-      </Grid>
-      <Grid size={6}>
+      </Grid2>
+
+      <Grid2 size={6}>
         <FormControl fullWidth>
-          <InputLabel>Unit</InputLabel>
+          <InputLabel>Unit (tenant)</InputLabel>
           <Select
             value={selectedUnit}
-            onChange={(e) => setSelectedUnit(e.target.value)}
+            label="Unit (tenant)"
+            onChange={(e) => setSelectedUnit(e.target.value as string)}
           >
-            <MenuItem value="all">All Units</MenuItem>
-            {house.units.map((u) => (
-              <MenuItem key={u.id} value={u.id}>
-                {u.name}
+            {unitOptions.map((v) => (
+              <MenuItem key={v} value={v}>
+                {v === "all" ? "All" : v}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
-      </Grid>
-      <Grid size={12}>
-        <Alert severity="success" sx={{ borderRadius: 1 }} variant="filled">
-          <strong>You saved €{savings.toFixed(2)}</strong> this period across{" "}
-          {house.address}. Keep the sun working.
-        </Alert>
-      </Grid>
-      <Grid size={4}>
+      </Grid2>
+
+      {/* KPIs */}
+      <Grid2 size={4}>
         <Card>
           <CardContent>
             <Typography variant="h6">Total Consumption</Typography>
@@ -82,66 +239,43 @@ export function LandlordDashboard() {
             </Typography>
           </CardContent>
         </Card>
-      </Grid>
-      <Grid size={4}>
+      </Grid2>
+      <Grid2 size={4}>
         <Card>
           <CardContent>
             <Typography variant="h6">PV Generation</Typography>
-            <Typography variant="h4">{sumPV.toFixed(2)} kWh</Typography>
+            <Typography variant="h4">{sumGeneration.toFixed(2)} kWh</Typography>
           </CardContent>
         </Card>
-      </Grid>
-      <Grid size={4}>
+      </Grid2>
+      <Grid2 size={4}>
         <Card>
           <CardContent>
-            <Typography variant="h6">Self‑sufficiency</Typography>
+            <Typography variant="h6">Self-sufficiency</Typography>
             <Typography variant="h4">{selfSuff.toFixed(0)}%</Typography>
           </CardContent>
         </Card>
-      </Grid>
+      </Grid2>
 
-      <Grid size={6}>
+      {/* ЕДИНСТВЕННЫЙ график: Consumption vs Generation */}
+      <Grid2 size={12}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Consumption vs PV
+              Consumption vs Generation
             </Typography>
             <Box sx={{ width: "100%", height: 300 }}>
               <LineChart
                 xAxis={[{ data: timestamps }]}
                 series={[
-                  {
-                    data: house.generalConsumptionLog.map((d) => d.kWh),
-                    label: "General",
-                  },
-                  {
-                    data: house.pvGenerationLog.map((d) => d.kWh),
-                    label: "PV",
-                  },
+                  { id: "cons", label: "Consumption", data: seriesConsumption },
+                  { id: "gen", label: "Generation", data: seriesGeneration },
                 ]}
               />
             </Box>
           </CardContent>
         </Card>
-      </Grid>
-      <Grid size={6}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Unit Breakdown
-            </Typography>
-            <Box sx={{ width: "100%", height: 300 }}>
-              <BarChart
-                xAxis={[{ data: timestamps }]}
-                series={unitsToShow.map((u) => ({
-                  data: u.consumptionLog.map((d) => d.kWh),
-                  label: u.name,
-                }))}
-              />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+      </Grid2>
+    </Grid2>
   );
 }

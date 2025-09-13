@@ -10,7 +10,8 @@ export default withAuth({
       if (path.startsWith("/devices") && token.role !== "landlord") {
         return false;
       }
-
+      if (path.startsWith("/providers") && token.role !== "landlord")
+        return false;
       return true;
     },
   },
