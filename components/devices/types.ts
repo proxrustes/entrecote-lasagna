@@ -1,9 +1,11 @@
+// components/devices/types.ts
 export type DeviceRow = {
   id: string;
-  name: string; // e.g. "Solar Inverter #1"
-  address: string; // building/unit address
+  name: string; // e.g. "Solar Inverter #1" (пока подставляем deviceId)
+  address: string; // building address
   status: "online" | "offline" | "degraded";
-  lastReadingAt: string; // ISO or human string
-  lastReadingValue?: number; // optional meter value
-  kwhProducedToday: number; // production today
+  lastReadingAt: string; // ISO или human string
+  lastReadingValue?: number; // kWh последнего чтения
+  kwhProducedToday: number; // суммарная генерация за сегодня
+  kwhProducedTotal: number;
 };
