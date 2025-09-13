@@ -73,49 +73,42 @@ export default function SettingsPage() {
               Billing & Payments
             </Typography>
 
-            {tenantData ? (
-              <Grid container spacing={2} sx={{ mt: 2 }}>
-                <Grid size={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Payment Method</InputLabel>
-                    <Select defaultValue="sepa" label="Payment Method">
-                      <MenuItem value="sepa">SEPA Direct Debit (IBAN)</MenuItem>
-                      <MenuItem value="card">Card</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid size={12}>
-                  <TextField
-                    label="IBAN"
-                    placeholder="DE12 3456 7890 1234 5678 90"
-                    fullWidth
-                  />
-                </Grid>
-                <Grid size={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Preferred Due Date</InputLabel>
-                    <Select defaultValue={5} label="Preferred Due Date">
-                      {[1, 5, 10, 15, 20, 25].map((d) => (
-                        <MenuItem key={d} value={d}>
-                          {d} of each month
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid size={6}>
-                  <FormControlLabel
-                    control={<Switch defaultChecked />}
-                    label="Enable Autopay"
-                  />
-                </Grid>
+            <Grid container spacing={2} sx={{ mt: 2 }}>
+              <Grid size={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Payment Method</InputLabel>
+                  <Select defaultValue="sepa" label="Payment Method">
+                    <MenuItem value="sepa">SEPA Direct Debit (IBAN)</MenuItem>
+                    <MenuItem value="card">Card</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
-            ) : (
-              <Typography color="text.secondary">
-                We couldn’t find your unit. Ask your landlord to link your
-                account.
-              </Typography>
-            )}
+              <Grid size={12}>
+                <TextField
+                  label="IBAN"
+                  placeholder="DE12 3456 7890 1234 5678 90"
+                  fullWidth
+                />
+              </Grid>
+              <Grid size={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Preferred Due Date</InputLabel>
+                  <Select defaultValue={5} label="Preferred Due Date">
+                    {[1, 5, 10, 15, 20, 25].map((d) => (
+                      <MenuItem key={d} value={d}>
+                        {d} of each month
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid size={6}>
+                <FormControlLabel
+                  control={<Switch defaultChecked />}
+                  label="Enable Autopay"
+                />
+              </Grid>
+            </Grid>
           </CardContent>
         </Card>
       )}
