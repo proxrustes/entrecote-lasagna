@@ -10,10 +10,8 @@ import {
   Button,
   Typography,
   Stack,
-  Link as MLink,
   Alert,
 } from "@mui/material";
-import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -29,7 +27,7 @@ export default function LoginPage() {
     setError(null);
 
     if (!email || !password) {
-      setError("Введите почту и пароль");
+      setError("Enter email and password");
       return;
     }
 
@@ -41,7 +39,7 @@ export default function LoginPage() {
     });
 
     if (res?.error) {
-      setError("Неверная почта или пароль");
+      setError("Wrong credentials");
     } else {
       router.push("/dashboard");
     }
@@ -67,7 +65,7 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit}>
               <Stack spacing={2}>
                 <TextField
-                  label="Почта"
+                  label="Email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -76,7 +74,7 @@ export default function LoginPage() {
                   fullWidth
                 />
                 <TextField
-                  label="Пароль"
+                  label="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -94,13 +92,6 @@ export default function LoginPage() {
                 </Button>
               </Stack>
             </form>
-
-            <Typography variant="body2" color="text.secondary">
-              Нет аккаунта?{" "}
-              <MLink component={Link} href="/signup">
-                Зарегистрироваться
-              </MLink>
-            </Typography>
           </Stack>
         </CardContent>
       </Card>
