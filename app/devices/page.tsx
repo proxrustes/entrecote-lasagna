@@ -4,19 +4,7 @@ import { Stack, Typography, CircularProgress, Alert } from "@mui/material";
 import { useSession } from "next-auth/react";
 import { DevicesTable } from "../../components/devices/DevicesTable";
 import type { DeviceRow } from "../../components/devices/types";
-
-type ApiDevice = {
-  id: string;
-  deviceId: string;
-  status: string;
-  buildingId: string;
-  buildingAddress: string;
-  lastReading: { timestamp: string; kWh: number } | null;
-  todayKWh: number;
-  totalKWh: number;
-  createdAt: string;
-  updatedAt: string;
-};
+import { ApiDevice, getDevices } from "../../services/devices";
 
 const normalizeStatus = (s?: string): DeviceRow["status"] => {
   const v = (s || "").toLowerCase();
@@ -50,11 +38,8 @@ export default function DevicesPage() {
         setLoading(true);
         setError(null);
         if (!landlordId) throw new Error("No landlordId in session");
-        const res = await fetch(
-          `/api/devices?landlordId=${encodeURIComponent(landlordId)}`
-        );
-        if (!res.ok) throw new Error(`API /devices ${res.status}`);
-        const data: ApiDevice[] = await res.json();
+
+        const data = await getDevices(landlordId);
         if (ignore) return;
         setRows(data.map(apiToRow));
       } catch (e: any) {
