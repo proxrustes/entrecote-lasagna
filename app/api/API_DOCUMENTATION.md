@@ -259,6 +259,141 @@ GET http://localhost:3000/api/consumption?landlordId=LANDLORD_1
 
 ---
 
+## Profit Endpoints
+
+### GET /api/profit
+Calculate landlord's profit from PV system (tenants + grid feeding).
+
+**Parameters:**
+- `landlordId` (required) - Landlord ID for security filtering
+- `buildingId` (optional) - Filter by specific building
+- `startDate` (optional) - Start date for calculation (ISO format, defaults to 1 year ago)
+- `endDate` (optional) - End date for calculation (ISO format, defaults to now)
+- `type` (optional) - "tenants", "feeding", or "combined" (default)
+
+**Example Requests:**
+```bash
+# Combined profit (default)
+curl "http://localhost:3000/api/profit?landlordId=LANDLORD_1"
+
+# Only tenant profit for specific building
+curl "http://localhost:3000/api/profit?landlordId=LANDLORD_1&buildingId=BUILDING_1&type=tenants"
+
+# Profit for specific time range
+curl "http://localhost:3000/api/profit?landlordId=LANDLORD_1&startDate=2024-01-01&endDate=2024-12-31"
+```
+
+**Response (Combined):**
+```json
+{
+  "profitFromTenants": 156.75,
+  "profitFromFeeding": 42.30,
+  "totalProfit": 199.05,
+  "currency": "EUR",
+  "timeRange": {
+    "start": "2023-01-15T10:00:00.000Z",
+    "end": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**Response (Tenants only):**
+```json
+{
+  "profitFromTenants": 156.75,
+  "currency": "EUR",
+  "timeRange": {
+    "start": "2023-01-15T10:00:00.000Z",
+    "end": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**Calculation Logic:**
+- **Profit from tenants**: `min(total_pv, tenant_consumption) * pv_cost_per_kwh`
+- **Profit from feeding**: `max(0, total_pv - total_consumption) * feeding_price`
+
+**Status Codes:**
+- `200` - Success
+- `400` - Missing landlordId
+- `404` - No buildings found for landlord
+- `500` - Server error
+
+---
+
+## Cost Endpoints
+
+### GET /api/costs
+Calculate tenant's energy costs with PV allocation.
+
+**Parameters:**
+- `userId` (required) - Tenant user ID
+- `startDate` (optional) - Start date for calculation (ISO format, defaults to 1 year ago)
+- `endDate` (optional) - End date for calculation (ISO format, defaults to now)
+- `unit` (optional) - "money" (default) or "kwh"
+
+**Example Requests:**
+```bash
+# Tenant costs in money (default)
+curl "http://localhost:3000/api/costs?userId=CONTRACT_1"
+
+# Tenant consumption in kWh
+curl "http://localhost:3000/api/costs?userId=CONTRACT_1&unit=kwh"
+
+# Costs for specific time range
+curl "http://localhost:3000/api/costs?userId=CONTRACT_1&startDate=2024-01-01&endDate=2024-03-31"
+```
+
+**Response (Money):**
+```json
+{
+  "pvCost": 25.50,
+  "gridCost": 45.30,
+  "totalCost": 70.80,
+  "baseFee": 12.50,
+  "currency": "EUR",
+  "breakdown": {
+    "pvConsumption": 85.000,
+    "gridConsumption": 151.000,
+    "totalConsumption": 236.000,
+    "pvRate": 0.30,
+    "gridRate": 0.30
+  },
+  "timeRange": {
+    "start": "2023-01-15T10:00:00.000Z",
+    "end": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**Response (kWh):**
+```json
+{
+  "pvConsumption": 85.000,
+  "gridConsumption": 151.000,
+  "totalConsumption": 236.000,
+  "unit": "kWh",
+  "timeRange": {
+    "start": "2023-01-15T10:00:00.000Z",
+    "end": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+**PV Allocation Logic:**
+- **Sufficient PV** (`total_pv >= total_consumption`): Tenant uses 100% PV for their consumption
+- **Insufficient PV** (`total_pv < total_consumption`): Tenant gets proportional share
+  - `tenant_pv_share = (tenant_consumption / total_consumption) * total_pv`
+  - `tenant_grid_usage = tenant_consumption - tenant_pv_share`
+
+**Status Codes:**
+- `200` - Success
+- `400` - Missing userId
+- `404` - Tenant, building, or cost information not found
+- `500` - Server error
+
+---
+
 ## Error Responses
 
 All endpoints return errors in this format:
