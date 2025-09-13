@@ -9,7 +9,7 @@ import { ProvidersTable } from "../../components/providers/ProvidersTable";
 import { Provider } from "../../types/Provider";
 import { EnergyMix } from "../../types/EnergyMix";
 
-const INITIAL_PROVIDERS: Provider[] = [
+export const INITIAL_PROVIDERS: Provider[] = [
   {
     id: "p1",
     name: "Vattenfall",

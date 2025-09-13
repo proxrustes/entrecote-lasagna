@@ -39,7 +39,7 @@ export function Header() {
       elevation={0}
       sx={{ borderBottom: 1, borderColor: "divider" }}
     >
-      <Toolbar sx={{ gap: 2, minHeight: 72 }}>
+      <Toolbar sx={{ gap: 1, minHeight: 72 }}>
         <Grid3x3RoundedIcon color="primary" />
         <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>
           RoofShare
