@@ -1,0 +1,187 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  TENANT
+  LANDLORD
+}
+
+model User {
+  id         String   @id @default(cuid())
+  name       String
+  address    String
+  iban       String
+  type       UserType
+  contractId String?  // Only for tenants
+
+  // Relations
+  authentication Authentication?
+  consumptions   Consumption[]
+  costs          Cost[]
+  ownedBuildings Building[]     @relation("LandlordBuildings")
+  tenantBuildings BuildingTenant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Authentication {
+  id       String @id @default(cuid())
+  email    String @unique
+  password String
+
+  // Relations
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("authentications")
+}
+
+model Consumption {
+  id             String   @id @default(cuid())
+  timestamp      DateTime
+  consumptionKwh Float
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("consumptions")
+  @@index([timestamp, userId])
+}
+
+model PvGeneration {
+  id            String   @id @default(cuid())
+  timestamp     DateTime
+  generationKwh Float
+  deviceId      String
+
+  // Relations
+  device Device @relation(fields: [deviceId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("pv_generations")
+  @@index([timestamp])
+}
+
+model Cost {
+  id         String @id @default(cuid())
+  pvCost     Float
+  gridCost   Float
+  baseFee    Float
+  currency   String @default("EUR")
+
+  // Relations - only for tenants
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("costs")
+}
+
+model Building {
+  id         String @id @default(cuid())
+  buildingId String @unique
+  address    String
+  providerId String
+
+  // Relations
+  landlordId String
+  landlord   User                @relation("LandlordBuildings", fields: [landlordId], references: [id])
+  provider   Provider            @relation(fields: [providerId], references: [id])
+  devices    Device[]
+  tenants    BuildingTenant[]
+  settlement Settlement?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("buildings")
+}
+
+model BuildingTenant {
+  id String @id @default(cuid())
+
+  // Relations
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id])
+  tenantId   String
+  tenant     User     @relation(fields: [tenantId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("building_tenants")
+  @@unique([buildingId, tenantId])
+}
+
+model Device {
+  id         String @id @default(cuid())
+  deviceId   String @unique
+  status     String
+  buildingId String
+
+  // Relations
+  building      Building      @relation(fields: [buildingId], references: [id])
+  pvGenerations PvGeneration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("devices")
+}
+
+model Provider {
+  id                String @id @default(cuid())
+  providerId        String @unique
+  name              String
+  windEnergyPct     Float
+  solarEnergyPct    Float
+  nuclearEnergyPct  Float
+
+  // Relations
+  buildings Building[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("providers")
+}
+
+model Settlement {
+  id            String @id @default(cuid())
+  gridCost      Float
+  feedingPrice  Float
+  currency      String @default("EUR")
+
+  // Relations
+  buildingId String   @unique
+  building   Building @relation(fields: [buildingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settlements")
+}
