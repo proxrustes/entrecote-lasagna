@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Set default time range to last year if not provided
+    // Set default time range to current month if not provided (instead of full year)
     const now = new Date()
-    const defaultStartDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+    const defaultStartDate = new Date(now.getFullYear(), now.getMonth(), 1) // Start of current month
     const timeStart = startDate ? new Date(startDate) : defaultStartDate
     const timeEnd = endDate ? new Date(endDate) : now
 
