@@ -24,7 +24,13 @@ function sumKwh(rows: Array<{ kWh?: number } | any> | undefined) {
   );
 }
 
-export function SavingsBanner({ landlordId }: { landlordId?: string }) {
+export function SavingsBanner({
+  landlordId,
+  verb,
+}: {
+  landlordId?: string;
+  verb: string;
+}) {
   const period: "1month" = "1month";
 
   const {
@@ -61,7 +67,7 @@ export function SavingsBanner({ landlordId }: { landlordId?: string }) {
         <Stack direction="row" alignItems="center" spacing={2}>
           <SavingsIcon sx={{ fontSize: 48 }} />
           <Box>
-            <Typography variant="h6">Money Saved This Month</Typography>
+            <Typography variant="h6">Money {verb} This Month</Typography>
             <Typography variant="h3">
               €{savings > 0 ? savings.toFixed(2) : "0.00"}
             </Typography>

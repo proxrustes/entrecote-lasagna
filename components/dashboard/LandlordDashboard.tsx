@@ -61,7 +61,7 @@ export function LandlordDashboard() {
 
   return (
     <Stack gap={2}>
-      <SavingsBanner landlordId={landlordId} />
+      <SavingsBanner landlordId={landlordId} verb="Earned" />
       <Card>
         <CardContent>
           <Grid2 container spacing={3}>
