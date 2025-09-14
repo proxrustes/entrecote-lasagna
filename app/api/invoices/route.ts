@@ -6,6 +6,62 @@ import { allocateTenantEnergy } from '@/lib/energy/allocation'
 
 const prisma = new PrismaClient()
 
+async function fetchYearlyConsumption(userId: string, landlordId?: string) {
+  try {
+    const currentDate = new Date()
+    const currentYear = currentDate.getFullYear()
+    const isYearComplete = currentDate.getMonth() === 11 && currentDate.getDate() === 31
+
+    // Current year: Jan 1 to now
+    const currentYearStart = new Date(`${currentYear}-01-01T00:00:00.000Z`)
+    const currentYearEnd = new Date()
+
+    // Previous year: Full year
+    const previousYearStart = new Date(`${currentYear - 1}-01-01T00:00:00.000Z`)
+    const previousYearEnd = new Date(`${currentYear - 1}-12-31T23:59:59.999Z`)
+
+    // Fetch current year consumption
+    const currentYearConsumptions = await prisma.consumption.findMany({
+      where: {
+        userId: userId,
+        timestamp: { gte: currentYearStart, lte: currentYearEnd }
+      }
+    })
+
+    const currentYearTotal = currentYearConsumptions.reduce((sum, c) => sum + c.consumptionKwh, 0)
+
+    // Fetch previous year consumption
+    const previousYearConsumptions = await prisma.consumption.findMany({
+      where: {
+        userId: userId,
+        timestamp: { gte: previousYearStart, lte: previousYearEnd }
+      }
+    })
+
+    const previousYearTotal = previousYearConsumptions.length > 0
+      ? previousYearConsumptions.reduce((sum, c) => sum + c.consumptionKwh, 0)
+      : undefined
+
+    // Calculate projection for current year if not complete
+    let currentYearProjection = currentYearTotal
+    if (!isYearComplete) {
+      const daysPassed = Math.ceil((currentYearEnd.getTime() - currentYearStart.getTime()) / (1000 * 60 * 60 * 24))
+      const daysInYear = 365
+      currentYearProjection = (currentYearTotal / daysPassed) * daysInYear
+    }
+
+    return {
+      currentYear: Math.round(currentYearTotal),
+      previousYear: previousYearTotal ? Math.round(previousYearTotal) : undefined,
+      currentYearProjection: Math.round(currentYearProjection),
+      isYearComplete
+    }
+  } catch (error) {
+    console.error('Error fetching yearly consumption:', error)
+    return undefined
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -154,13 +210,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Collect all users in this building (tenants + landlord) for interval allocation
-    const buildingFull = await prisma.building.findUnique({
+    // Get provider information for energy mix
+    const building = await prisma.building.findUnique({
       where: { id: buildingRef.id },
-      include: { tenants: true }
+      include: {
+        provider: true,
+        tenants: true
+      }
     })
 
-    const buildingTenantIds = (buildingFull?.tenants || []).map(bt => bt.tenantId)
+    if (!building) {
+      return NextResponse.json(
+        { error: 'Building not found' },
+        { status: 404 }
+      )
+    }
+
+    // Collect all users in this building (tenants + landlord) for interval allocation
+    const buildingTenantIds = building.tenants.map(bt => bt.tenantId)
     const allUserIds = [...buildingTenantIds, buildingRef.landlordId]
 
     const allConsumptions = await prisma.consumption.findMany({
@@ -200,6 +267,9 @@ export async function POST(request: NextRequest) {
     const totalBaseFee = userCost.baseFee
     const totalAmount = totalGridCost + totalPvCost + totalBaseFee
 
+    // Fetch yearly consumption data for chart
+    const yearlyConsumption = await fetchYearlyConsumption(userId, landlordId)
+
     // Invoice data structure
     const invoiceData: InvoiceData = {
       invoiceNumber: `INV-${Date.now()}`,
@@ -211,7 +281,16 @@ export async function POST(request: NextRequest) {
       },
       provider: {
         name: 'RoofShare Energy GmbH',
-        address: 'Musterstraße 123<br>10115 Berlin<br>Deutschland'
+        address: 'Musterstraße 123<br>10115 Berlin<br>Deutschland',
+        energyMix: {
+          solarEnergyPct: building.provider.solarEnergyPct,
+          windEnergyPct: building.provider.windEnergyPct,
+          nuclearEnergyPct: building.provider.nuclearEnergyPct,
+          coalEnergyPct: building.provider.coalEnergyPct,
+          gasEnergyPct: building.provider.gasEnergyPct,
+          miscFossilEnergyPct: building.provider.miscFossilEnergyPct,
+          miscRenewableEnergyPct: building.provider.miscRenewableEnergyPct
+        }
       },
       building: user.tenantBuildings[0]?.building,
       period: {
@@ -235,7 +314,8 @@ export async function POST(request: NextRequest) {
           pvRate: userCost.pvCost
         }
       },
-      generatedAt: new Date().toISOString()
+      generatedAt: new Date().toISOString(),
+      yearlyConsumption
     }
 
     // Generate PDF from HTML template
