@@ -4,8 +4,6 @@ export type ProfitType = "combined" | "tenants" | "feeding";
 export type ProfitQuery = {
   landlordId: string;
   buildingId?: string;
-  startDate?: string; // ISO
-  endDate?: string; // ISO
   type?: ProfitType;
 };
 
@@ -21,11 +19,9 @@ export type ProfitResponse = {
 export async function fetchProfit(
   params: ProfitQuery
 ): Promise<ProfitResponse> {
-  const { landlordId, buildingId, startDate, endDate, type } = params;
+  const { landlordId, buildingId, type } = params;
   const qs = new URLSearchParams({ landlordId });
   if (buildingId) qs.set("buildingId", buildingId);
-  if (startDate) qs.set("startDate", startDate);
-  if (endDate) qs.set("endDate", endDate);
   if (type) qs.set("type", type);
 
   const res = await fetch(`/api/profit?${qs.toString()}`, {
