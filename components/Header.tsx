@@ -67,9 +67,6 @@ export function Header() {
             onClose={handleClose}
             keepMounted
           >
-            <MenuItem component={Link} href="/profile" onClick={handleClose}>
-              Profile
-            </MenuItem>
             <MenuItem onClick={() => signOut({ callbackUrl: "/" })}>
               Logout
             </MenuItem>
