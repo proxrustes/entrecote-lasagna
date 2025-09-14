@@ -15,14 +15,21 @@ import EuroIcon from "@mui/icons-material/Euro";
 import { CardHeader } from "../dashboard/CardHeader";
 import { useTenantCosts } from "../../services/costs/costs.hooks";
 import { isMoney } from "../../services/costs/costs.service";
+import { useTenantLandlord } from "../../services/tenant/tenant.hooks";
 
 export function TenantBilling() {
   const { data: session } = useSession();
   const userId = session?.user?.id;
 
-  const { data: costsData, isLoading, error } = useTenantCosts(
-    userId ? { userId } : undefined
+  // Get landlordId for tenant user
+  const { data: landlordData, isLoading: isLoadingLandlord } = useTenantLandlord(userId);
+  const landlordId = landlordData?.landlordId;
+
+  const { data: costsData, isLoading: isLoadingCosts, error } = useTenantCosts(
+    userId && landlordId ? { userId, landlordId } : undefined
   );
+
+  const isLoading = isLoadingLandlord || isLoadingCosts;
 
   const costDataMoney = costsData && isMoney(costsData) ? costsData : null;
 

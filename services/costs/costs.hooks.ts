@@ -3,6 +3,7 @@ import { fetchTenantCosts } from "./costs.service";
 
 type Params = {
   userId: string;
+  landlordId?: string;
   startDate?: string | Date;
   endDate?: string | Date;
   unit?: "money" | "kwh";
@@ -13,6 +14,7 @@ export function useTenantCosts(params?: Params) {
     queryKey: [
       "costs",
       params?.userId,
+      params?.landlordId,
       params?.startDate,
       params?.endDate,
       params?.unit,

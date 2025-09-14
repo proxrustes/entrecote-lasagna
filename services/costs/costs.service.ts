@@ -30,6 +30,7 @@ export type TenantCostsResponse = TenantCostsKwh | TenantCostsMoney;
 
 type Params = {
   userId: string;
+  landlordId?: string;
   startDate?: string | Date;
   endDate?: string | Date;
   unit?: "money" | "kwh";
@@ -40,11 +41,13 @@ const toISO = (d: string | Date) =>
 
 export async function fetchTenantCosts({
   userId,
+  landlordId,
   startDate,
   endDate,
   unit = "money",
 }: Params): Promise<TenantCostsResponse> {
   const qs = new URLSearchParams({ userId, unit });
+  if (landlordId) qs.set("landlordId", landlordId);
   if (startDate) qs.set("startDate", toISO(startDate));
   if (endDate) qs.set("endDate", toISO(endDate));
 
