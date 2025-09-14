@@ -47,7 +47,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Build query conditions with time range
-    const whereClause: any = {
+    const whereClause: {
+      timestamp: { gte: Date; lte: Date }
+      userId?: string | { in: string[] }
+    } = {
       timestamp: {
         gte: startDateTime,
         lte: endDateTime
@@ -95,7 +98,7 @@ export async function GET(request: NextRequest) {
 
     // Apply buildingId filter if provided
     if (buildingId) {
-      const landlordBuilding = buildings.find(b => b.buildingId === buildingId)
+      const landlordBuilding = buildings.find(b => b.id === buildingId)
       if (!landlordBuilding) {
         return NextResponse.json(
           { error: 'Building not found or not owned by this landlord' },
@@ -120,68 +123,80 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get consumption data based on aggregation unit
-    const consumptions = await prisma.consumption.findMany({
-      where: whereClause,
-      include: {
-        user: {
-          select: { name: true }
-        }
-      },
-      orderBy: { timestamp: 'asc' }
-    })
+    // Use database-level aggregation with raw SQL for better performance
+    let dateFormat: string
+    let dateGroupBy: string
 
-    // Group by aggregation unit and user
-    const groups = new Map<string, {
-      userId: string,
-      userName: string,
-      totalKwh: number,
-      count: number,
+    if (aggregationUnit === 'hour') {
+      // Group by hour - PostgreSQL syntax
+      dateFormat = `DATE_TRUNC('hour', timestamp)`
+      dateGroupBy = `DATE_TRUNC('hour', timestamp)`
+    } else {
+      // Group by day - PostgreSQL syntax
+      dateFormat = `DATE_TRUNC('day', timestamp)`
+      dateGroupBy = `DATE_TRUNC('day', timestamp)`
+    }
+
+    // Build WHERE conditions for raw query
+    const params: (string | Date)[] = []
+    const whereConditions: string[] = []
+    let paramIndex = 1
+
+    // Add timestamp range
+    whereConditions.push(`timestamp >= $${paramIndex} AND timestamp <= $${paramIndex + 1}`)
+    params.push(startDateTime, endDateTime)
+    paramIndex += 2
+
+    // Add userId filter
+    if (whereClause.userId) {
+      if (typeof whereClause.userId === 'string') {
+        whereConditions.push(`c."userId" = $${paramIndex}`)
+        params.push(whereClause.userId)
+        paramIndex += 1
+      } else if (whereClause.userId.in) {
+        const placeholders = whereClause.userId.in.map((_: string, i: number) => `$${paramIndex + i}`).join(', ')
+        whereConditions.push(`c."userId" IN (${placeholders})`)
+        params.push(...whereClause.userId.in)
+        paramIndex += whereClause.userId.in.length
+      }
+    }
+
+    const whereSQL = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
+
+    // Execute aggregated query
+    const aggregatedResults = await prisma.$queryRawUnsafe<Array<{
+      userId: string
+      userName: string
+      totalKwh: number
+      dataPoints: number
       period: Date
-    }>()
+    }>>(`
+      SELECT
+        c."userId" as "userId",
+        u.name as "userName",
+        SUM(c."consumptionKwh") as "totalKwh",
+        COUNT(*) as "dataPoints",
+        ${dateFormat} as period
+      FROM consumptions c
+      JOIN users u ON c."userId" = u.id
+      ${whereSQL}
+      GROUP BY c."userId", u.name, ${dateGroupBy}
+      ORDER BY period ASC, c."userId"
+    `, ...params)
 
-    consumptions.forEach(c => {
-      let period: Date
-
-      if (aggregationUnit === 'hour') {
-        period = new Date(c.timestamp)
-        period.setMinutes(0, 0, 0)
-      } else {
-        // Daily aggregation
-        period = new Date(c.timestamp)
-        period.setHours(0, 0, 0, 0)
-      }
-
-      const key = `${c.userId}-${period.toISOString()}`
-
-      if (!groups.has(key)) {
-        groups.set(key, {
-          userId: c.userId,
-          userName: c.user.name,
-          totalKwh: 0,
-          count: 0,
-          period
-        })
-      }
-
-      const group = groups.get(key)!
-      group.totalKwh += c.consumptionKwh
-      group.count += 1
-    })
-
-    const formattedData = Array.from(groups.values()).map(group => ({
-      timestamp: group.period.toISOString(),
-      userId: group.userId,
-      userName: group.userName,
-      kWh: Number(group.totalKwh.toFixed(3)),
-      dataPoints: group.count,
+    const formattedData = aggregatedResults.map(result => ({
+      timestamp: result.period.toISOString(),
+      userId: result.userId,
+      userName: result.userName,
+      kWh: Number(Number(result.totalKwh).toFixed(3)),
+      dataPoints: Number(result.dataPoints),
       period: period,
       aggregation: aggregationUnit,
       timeRange: {
         start: startDateTime.toISOString(),
         end: endDateTime.toISOString()
       }
-    })).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    }))
 
     return NextResponse.json(formattedData)
 
