@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const buildings = await prisma.building.findMany({
       where: {
         landlordId,
-        ...(buildingId && { buildingId: buildingId })
+        ...(buildingId && { id: buildingId })
       },
       include: {
         settlement: true,
@@ -53,39 +53,36 @@ export async function GET(request: NextRequest) {
     let totalProfitFromFeeding = 0
 
     for (const building of buildings) {
-      // Get total PV generation for this building
-      const pvGenerations = await prisma.pvGeneration.findMany({
-        where: {
-          device: {
-            buildingId: building.id
-          },
-          timestamp: {
-            gte: timeStart,
-            lte: timeEnd
-          }
-        }
-      })
-
-      const totalPvGeneration = pvGenerations.reduce((sum, pv) => sum + pv.generationKwh, 0)
-
-      // Get all consumption (tenants + landlord) for this building
       const tenantIds = building.tenants.map(bt => bt.tenantId)
       const allUserIds = [...tenantIds, landlordId]
 
-      const consumptions = await prisma.consumption.findMany({
-        where: {
-          userId: { in: allUserIds },
-          timestamp: {
-            gte: timeStart,
-            lte: timeEnd
-          }
-        }
-      })
+      // Use database-level aggregation for PV generation
+      const pvGenerationResult = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
+        `SELECT COALESCE(SUM(g."generationKwh"), 0) as total
+         FROM pv_generations g
+         JOIN devices d ON g."deviceId" = d.id
+         WHERE d."buildingId" = $1 AND g.timestamp >= $2 AND g.timestamp <= $3`,
+        building.id, timeStart, timeEnd
+      )
+      const totalPvGeneration = Number(pvGenerationResult[0]?.total || 0)
 
-      const totalConsumption = consumptions.reduce((sum, c) => sum + c.consumptionKwh, 0)
-      const tenantConsumption = consumptions
-        .filter(c => tenantIds.includes(c.userId))
-        .reduce((sum, c) => sum + c.consumptionKwh, 0)
+      // Use database-level aggregation for all consumption
+      const allConsumptionResult = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
+        `SELECT COALESCE(SUM("consumptionKwh"), 0) as total
+         FROM consumptions
+         WHERE "userId" = ANY($1::text[]) AND timestamp >= $2 AND timestamp <= $3`,
+        allUserIds, timeStart, timeEnd
+      )
+      const totalConsumption = Number(allConsumptionResult[0]?.total || 0)
+
+      // Use database-level aggregation for tenant consumption only
+      const tenantConsumptionResult = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
+        `SELECT COALESCE(SUM("consumptionKwh"), 0) as total
+         FROM consumptions
+         WHERE "userId" = ANY($1::text[]) AND timestamp >= $2 AND timestamp <= $3`,
+        tenantIds, timeStart, timeEnd
+      )
+      const tenantConsumption = Number(tenantConsumptionResult[0]?.total || 0)
 
       // Get PV cost from tenant cost records
       const tenantCosts = await prisma.cost.findMany({
@@ -114,7 +111,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Return based on type parameter
-    const response: any = {
+    const response: {
+      currency: string
+      timeRange: { start: Date; end: Date }
+      profitFromTenants?: number
+      profitFromFeeding?: number
+      totalProfit?: number
+    } = {
       currency: 'EUR',
       timeRange: {
         start: timeStart,
