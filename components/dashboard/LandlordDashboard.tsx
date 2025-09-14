@@ -15,30 +15,16 @@ import {
 import Grid2 from "@mui/material/Grid";
 import { useSession } from "next-auth/react";
 import { ConsumptionVsGenerationChart } from "./ConsumptionVsGeneration";
-import { useBuildings } from "../../services/buildings/useBuildings"; // ← поправь путь к твоему хуку
+import { useBuildings } from "../../services/buildings/useBuildings";
 import { SavingsBanner } from "./ProfitBanner";
+import { RangeKey, mapRangeKeyToPeriod } from "./mapRangeKeyToPeriod";
 
 const EUR_PER_KWH = 0.3 as const;
-
-type RangeKey = "today" | "week" | "month" | "year";
-function getRange(k: RangeKey) {
-  const end = new Date();
-  const start = new Date(end);
-  if (k === "today") start.setHours(0, 0, 0, 0);
-  if (k === "week") start.setDate(end.getDate() - 7);
-  if (k === "month") start.setMonth(end.getMonth() - 1);
-  if (k === "year") start.setFullYear(end.getFullYear() - 1);
-  return {
-    startDate: start.toISOString(),
-    endDate: end.toISOString(),
-  };
-}
 
 export function LandlordDashboard() {
   const { data: session } = useSession();
   const landlordId = (session as any)?.user?.id as string | undefined;
 
-  // buildings via API
   const {
     data: buildings,
     isLoading: bLoading,
@@ -46,17 +32,14 @@ export function LandlordDashboard() {
     error,
   } = useBuildings(landlordId);
 
-  // selected building / tenant / time
   const [selectedHouse, setSelectedHouse] = React.useState<string>("");
   const [selectedTenant, setSelectedTenant] = React.useState<string>("all");
   const [rangeKey, setRangeKey] = React.useState<RangeKey>("month");
 
-  // sums for banner
   const [sumCons, setSumCons] = React.useState(0);
   const [sumGen, setSumGen] = React.useState(0);
   const savings = Math.min(sumCons, sumGen) * EUR_PER_KWH;
 
-  // pick default house when buildings arrive
   React.useEffect(() => {
     if (!selectedHouse && buildings?.length) {
       setSelectedHouse(buildings[0].id);
@@ -69,10 +52,10 @@ export function LandlordDashboard() {
   if (!buildings?.length && !bLoading)
     return <Alert severity="info">No data</Alert>;
 
-  // current building + tenant options
   const current = buildings?.find((b) => b.id === selectedHouse);
   const tenantOptions =
     current?.tenants?.map((t) => ({ id: t.id, label: t.name || t.id })) ?? [];
+  const period = React.useMemo(() => mapRangeKeyToPeriod(rangeKey), [rangeKey]);
 
   return (
     <Card>
@@ -150,6 +133,7 @@ export function LandlordDashboard() {
                 houseId={selectedHouse}
                 tenantId={selectedTenant === "all" ? undefined : selectedTenant}
                 height={320}
+                period={period}
                 onStats={({ sumConsumption, sumGeneration }) => {
                   setSumCons(sumConsumption);
                   setSumGen(sumGeneration);

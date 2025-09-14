@@ -5,13 +5,18 @@ type Params = {
   landlordId: string;
   buildingId?: string;
   userId?: string;
-  period?: '1day' | '1week' | '1month' | '1year';
-  endDate?: string;
+  period?: "1day" | "1week" | "1month" | "1year";
 };
 
 export function useGeneration(params?: Params) {
   return useQuery({
-    queryKey: ["generation", params?.landlordId, params?.buildingId, params?.userId, params?.period, params?.endDate],
+    queryKey: [
+      "generation",
+      params?.landlordId,
+      params?.buildingId,
+      params?.userId,
+      params?.period,
+    ],
     enabled: !!params?.landlordId,
     queryFn: () => fetchGeneration(params as Params),
     placeholderData: (p) => p,

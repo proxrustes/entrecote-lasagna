@@ -3,32 +3,20 @@
 import * as React from "react";
 import { Box, CircularProgress, Alert } from "@mui/material";
 import { LineChart } from "@mui/x-charts";
-import { fetchConsumption } from "../../services/consumption";
-import { fetchGeneration } from "../../services/generation";
-
-export type ConsumptionRow = {
-  timestamp: string;
-  userId: string;
-  buildingId: string;
-  kWh: number;
-};
-export type GenerationRow = {
-  timestamp: string;
-  deviceId: string;
-  buildingId: string;
-  kWh: number;
-};
+import { useConsumption } from "../../services/consumption/consumption.hooks";
+import { useGeneration } from "../../services/generation/generation.hooks";
 
 type Props = {
-  landlordId: string; // обязателен
-  houseId?: string; // buildingId
-  tenantId?: string; // userId (если не задан – берём всех доступных)
-  height?: number; // высота чарта (по умолчанию 320)
+  landlordId: string;
+  houseId?: string;
+  tenantId?: string;
+  height?: number;
+  period?: "1day" | "1week" | "1month" | "1year";
   onStats?: (s: {
     timestamps: Date[];
     sumConsumption: number;
     sumGeneration: number;
-  }) => void; // опционально: вернёт суммы родителю
+  }) => void;
 };
 
 const toMs = (iso: string) => new Date(iso).getTime();
@@ -58,63 +46,61 @@ export function ConsumptionVsGenerationChart({
   houseId,
   tenantId,
   height = 320,
+  period,
   onStats,
 }: Props) {
-  const [loading, setLoading] = React.useState(true);
-  const [err, setErr] = React.useState<string | null>(null);
-  const [timestamps, setTimestamps] = React.useState<Date[]>([]);
-  const [seriesCons, setSeriesCons] = React.useState<number[]>([]);
-  const [seriesGen, setSeriesGen] = React.useState<number[]>([]);
+  const consQuery = useConsumption({
+    landlordId,
+    buildingId: houseId,
+    userId: tenantId,
+    period,
+  });
+
+  const genQuery = useGeneration({
+    landlordId,
+    buildingId: houseId,
+    period,
+  });
+
+  const isLoading =
+    consQuery.isLoading ||
+    genQuery.isLoading ||
+    consQuery.isFetching ||
+    genQuery.isFetching;
+
+  const consumptionRows = consQuery.data ?? [];
+  const generationRows = genQuery.data ?? [];
+
+  const { timestamps, seriesCons, seriesGen } = React.useMemo(() => {
+    const consMap = aggregateByTimestamp((consumptionRows as any) || []);
+    const genMap = aggregateByTimestamp((generationRows as any) || []);
+    const { ts, cons, gen } = buildTimeline(consMap, genMap);
+    const tsDates = ts.map((ms) => new Date(ms));
+    return { timestamps: tsDates, seriesCons: cons, seriesGen: gen };
+  }, [consumptionRows, generationRows]);
 
   React.useEffect(() => {
-    if (!landlordId) return;
-    let ignore = false;
-    (async () => {
-      try {
-        setLoading(true);
-        setErr(null);
+    if (!onStats) return;
+    const sumConsumption = seriesCons.reduce((a, v) => a + v, 0);
+    const sumGeneration = seriesGen.reduce((a, v) => a + v, 0);
+    onStats({ timestamps, sumConsumption, sumGeneration });
+  }, [timestamps, seriesCons, seriesGen, onStats]);
 
-        const [gRows, cRows] = await Promise.all([
-          fetchGeneration({ landlordId, buildingId: houseId }),
-          fetchConsumption({
-            landlordId,
-            buildingId: houseId,
-            userId: tenantId,
-          }),
-        ]);
+  const error = consQuery.error ?? genQuery.error;
 
-        if (ignore) return;
-
-        const genMap = aggregateByTimestamp(gRows);
-        const consMap = aggregateByTimestamp(cRows);
-        const { ts, cons, gen } = buildTimeline(consMap, genMap);
-
-        const tsDates = ts.map((ms) => new Date(ms));
-        setTimestamps(tsDates);
-        setSeriesCons(cons);
-        setSeriesGen(gen);
-
-        if (onStats) {
-          const sumConsumption = cons.reduce((a, v) => a + v, 0);
-          const sumGeneration = gen.reduce((a, v) => a + v, 0);
-          onStats({ timestamps: tsDates, sumConsumption, sumGeneration });
-        }
-      } catch (e: any) {
-        if (!ignore) setErr(e?.message ?? "load failed");
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    })();
-    return () => {
-      ignore = true;
-    };
-  }, [landlordId, houseId, tenantId, onStats]);
-
-  if (loading) {
+  if (isLoading) {
     return <CircularProgress />;
   }
-  if (err) return <Alert severity="error">{err}</Alert>;
-  if (!timestamps.length) return <Alert severity="info">No data</Alert>;
+
+  if (error) {
+    return (
+      <Alert severity="error">{String((error as any)?.message ?? error)}</Alert>
+    );
+  }
+
+  if (!timestamps.length) {
+    return <Alert severity="info">No data</Alert>;
+  }
 
   return (
     <Box sx={{ width: "100%", height }}>

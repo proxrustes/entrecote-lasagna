@@ -20,18 +20,17 @@ type Params = {
   landlordId: string;
   buildingId?: string;
   userId?: string;
-  period?: '1day' | '1week' | '1month' | '1year';
+  period?: "1day" | "1week" | "1month" | "1year";
   endDate?: string;
 };
 
-export async function fetchConsumption(params: Params): Promise<ConsumptionData[]> {
+export async function fetchConsumption(
+  params: Params
+): Promise<ConsumptionData[]> {
   const qs = new URLSearchParams({ landlordId: params.landlordId });
   if (params.buildingId) qs.set("buildingId", params.buildingId);
   if (params.userId) qs.set("userId", params.userId);
   if (params.period) qs.set("period", params.period);
-  if (params.endDate) qs.set("endDate", params.endDate);
 
-  return getJSON<ConsumptionData[]>(
-    `${CONSUMPTION_ENDPOINT}?${qs.toString()}`
-  );
+  return getJSON<ConsumptionData[]>(`${CONSUMPTION_ENDPOINT}?${qs.toString()}`);
 }
