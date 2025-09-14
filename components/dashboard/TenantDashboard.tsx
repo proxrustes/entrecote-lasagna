@@ -54,7 +54,6 @@ export function TenantDashboard() {
         <Card>
           <CardContent>
             <CardHeader
-              address={(session?.user as any)?.address || "Loading..."}
               name={session?.user?.name || "Loading..."}
               contractNumber={(session?.user as any)?.contractId || "N/A"}
             />
