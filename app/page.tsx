@@ -10,7 +10,7 @@ import Link from "next/link";
 
 export default function LandingPage() {
   return (
-    <Container maxWidth="lg" sx={{ py: 8 }}>
+    <Container maxWidth="md" sx={{ py: 8 }}>
       {/* Hero Section */}
       <Grid container spacing={6} alignItems="center">
         <Grid size={6}>
@@ -52,7 +52,6 @@ export default function LandingPage() {
         </Grid>
       </Grid>
 
-      {/* Features Section */}
       <Box mt={12}>
         <Typography variant="h4" align="center" fontWeight={700} gutterBottom>
           Why RoofShare?

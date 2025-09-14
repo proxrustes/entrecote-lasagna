@@ -46,4 +46,47 @@ export const theme = createTheme({
     h3: { fontWeight: 700 },
     button: { textTransform: "none", fontWeight: 600 },
   },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: ({ ownerState, theme }: any) => {
+          const colorKey: string = ownerState?.color || "primary";
+
+          const paletteForKey =
+            (theme.palette as any)[colorKey] ?? theme.palette.primary;
+
+          const main = paletteForKey?.main ?? theme.palette.primary.main;
+          const dark = paletteForKey?.dark ?? main;
+          const contrastText =
+            paletteForKey?.contrastText ?? theme.palette.getContrastText(main);
+
+          if (ownerState.variant === "text") {
+            return {
+              borderColor: main,
+              color: main,
+              "&:hover": {
+                backgroundColor: main,
+                borderColor: dark,
+                color: contrastText,
+              },
+            };
+          }
+
+          if (ownerState.variant === "outlined") {
+            return {
+              color: main,
+              borderColor: main,
+              "&:hover": {
+                backgroundColor: main,
+                color: contrastText,
+                borderColor: dark,
+              },
+            };
+          }
+
+          return {};
+        },
+      },
+    },
+  },
 });
