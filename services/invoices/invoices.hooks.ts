@@ -9,7 +9,7 @@ import {
 export function useInvoices(userId?: string) {
   return useQuery({
     queryKey: ["invoices", userId],
-    enabled: !!userId,
+    enabled: true, // Always enabled - API handles filtering
     queryFn: () => fetchInvoices(userId),
     staleTime: 60_000, // 1 minute
     refetchOnWindowFocus: false,
