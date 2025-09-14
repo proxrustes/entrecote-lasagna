@@ -1,4 +1,3 @@
-// services/profit/useProfit.ts
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
@@ -11,8 +10,6 @@ export function useProfit(params?: ProfitQuery) {
       "profit",
       params?.landlordId ?? "none",
       params?.buildingId ?? "all",
-      params?.startDate ?? "auto",
-      params?.endDate ?? "now",
       params?.type ?? "combined",
     ],
     enabled,
